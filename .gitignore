@@ -138,3 +138,6 @@ dmypy.json
 examples/example4/
 examples/example3/
 post_processing/
+
+# Output files
+*.vtk
