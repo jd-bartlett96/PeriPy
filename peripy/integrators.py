@@ -6,7 +6,7 @@ from .peridynamics import damage, bond_force, update_displacement, break_bonds
 import pyopencl as cl
 import pathlib
 import numpy as np
-from .core import calculate_stretch, calculate_bsf_trilinear, calculate_bsf_non_linear, calculate_bond_force,\
+from .functions.core import calculate_stretch, calculate_bsf_trilinear, calculate_bsf_non_linear, calculate_bond_force,\
     calculate_nodal_force, euler_cromer, calculate_damage
 
 
@@ -476,7 +476,7 @@ class EulerJit(Integrator):
     the force density at time :math:`t`, :math:`\delta t` is the time step.
     """
 
-    def __init__(self, dt):
+    def __init__(self, dt, s0, s1, sc, c, cell_volume):
         """
         Create an :class:`Euler` integrator object.
 
@@ -485,6 +485,11 @@ class EulerJit(Integrator):
         :returns: An :class:`Euler` object
         """
         self.dt = dt
+        self.s0 = s0
+        self.s1 = s1
+        self.sc = sc
+        self.bond_stiffness = c
+        self.cell_volume = cell_volume
         self.context = None     # Not an OpenCL integrator
         # TODO: should the bondlist be built within the class?
 
@@ -503,15 +508,10 @@ class EulerJit(Integrator):
         deformed_X, deformed_Y, deformed_Z, deformed_length, stretch = self._calculate_stretch(deformed_coordinates)
 
         # Calculate bond softening factor
-        s0 = np.float64(1.05e-4)
-        s1 = np.float64(6.90e-4)
-        sc = np.float64(5.56e-3)
-        self.bond_softening_factor, self.flag_bsf = self._calculate_bsf_trilinear(stretch, s0, s1, sc)
+        self.bond_softening_factor, self.flag_bsf = self._calculate_bsf_trilinear(stretch, self.s0, self.s1, self.sc)
 
         # Calculate bond forces
-        bond_stiffness = np.float64(2.32e+18)
-        cell_volume = np.float64((5/1000) ** 3)
-        bond_force_X, bond_force_Y, bond_force_Z = self._calculate_bond_forces(bond_stiffness, stretch, cell_volume,
+        bond_force_X, bond_force_Y, bond_force_Z = self._calculate_bond_forces(self.bond_stiffness, stretch, self.cell_volume,
                                                                                 deformed_X, deformed_Y, deformed_Z,
                                                                                 deformed_length)
 
@@ -539,7 +539,6 @@ class EulerJit(Integrator):
 
         self.nlist = nlist
         self.n_neigh = n_neigh
-        self.bond_stiffness = bond_stiffness
         self.critical_stretch = critical_stretch
         self.u = u
         self.ud = ud
