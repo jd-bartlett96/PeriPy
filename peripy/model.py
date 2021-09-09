@@ -185,7 +185,7 @@ class Model(object):
             University of Nebraska-Lincoln, Department of Mechanical &
             Materials Engineering (September 2010)] is used. Set to None:
             The 'Full Volume algorithm' is used; partial nodal volumes are
-            approximated by their full nodal volumes. Defauly None.
+            approximated by their full nodal volumes. Default None.
         :arg int micromodulus_function: A flag variable denoting the
             normalised micromodulus function. Set to 0: A conical micromodulus
             function is used, which is normalised such that the maximum value
