@@ -1,213 +1,6 @@
 """Utilities for example 3."""
 import numpy as np
 
-
-def is_tip_5mm_reinforced_concrete(x):
-    """
-    Return a boolean list of tip types for each cartesian direction.
-
-    Returns a boolean list, whose elements are True when the particle is to
-    be measured for some displacement, velocity, force or acceleration
-    in that cartesian direction.
-
-    :arg x: Particle coordinate array of size (3,).
-    :type x: :class:`numpy.ndarray`
-    """
-    # Particle does not live on tip
-    tip = [None, None, None]
-    # Particle does live on tip
-    if ((x[2] < -0.0025)):
-        tip[2] = 'force'
-    if ((x[2] > 0.3175)):
-        tip[2] = 'reaction_force'
-    if ((x[0] > 0.975 - 4.0e-3)
-            and (x[0] < 0.975 + 4.0e-3)
-            and x[2] < 4.0e-3):
-        tip[2] = 'deflection'
-    return tip
-
-
-def is_rebar_5mm(x):
-    """ Function to determine whether the node coordinate is rebar
-    """
-    x_yz = x[1:]  # y and z coordinates for this node
-    bar_centers = [
-        # Tensile bars with approx 55mm - 13mm of cover
-        np.array((0.055, 0.270)),
-        np.array((0.135, 0.270))]
-
-    rad_t = 0.013
-
-    radii = [rad_t, rad_t]
-
-    costs = [np.sum(np.square(cent - x_yz) - (np.square(rad)))
-             for cent, rad in zip(bar_centers, radii)]
-    if any(c <= 0 for c in costs):
-        return True
-    else:
-        return False
-
-
-def is_bond_type_5mm_reinforced_concrete(x, y):
-    """is_bond_type."""
-    # If at the supports, then it does not break
-    # Particle does not live on a boundary
-    bnd = 0  # Concrete
-    # No failure zone for top left support
-    if ((x[2] > 0.299) and (x[0] < 0.016)):
-        bnd = 1
-    # No failure zone for top right support
-    if ((x[2] > 0.299) and (x[0] > 1.934)):
-        bnd = 1
-    # Displacement controlled particles on the bottom
-    if ((x[2] < -0.0025)):
-        bnd = 1
-    bool1 = is_rebar_5mm(x)
-    bool2 = is_rebar_5mm(y)
-    if bool1 and bool2:
-        bnd = 2  # Steel
-    elif bool1 != bool2:
-        bnd = 3  # Interface
-    return bnd
-
-
-def is_displacement_boundary_5mm_reinforced_concrete(x):
-    """
-    Return a boolean list of displacement boundarys for each direction.
-
-    Returns a (3,) boolean list, whose elements are:
-        None where there is no boundary condition;
-        -1 where the boundary is displacement loaded in negative direction;
-        1 where the boundary is displacement loaded in positive direction;
-        0 where the boundary is clamped;
-
-    :arg x: Particle coordinate array of size (3,).
-    :type x: :class:`numpy.ndarray`
-    """
-    # Particle does not live on a boundary
-    bnd = [None, None, None]
-    # Displacement controlled particles
-    if ((x[2] < -0.0025)):
-        bnd[2] = 1  # z direction +ve displacement controlled
-        bnd[1] = 0  # 0 out of plane deflection enforcement
-    # Fully clamped particles on the top left
-    if ((x[2] > 0.3175) and (x[0]) < 1.0):
-        bnd[2] = 0
-        bnd[1] = 0
-        bnd[0] = 0
-    # Unconstrained to move in the x-direction
-    if ((x[2] > 0.3175) and (x[0] > 1.0)):
-        bnd[2] = 0
-        bnd[1] = 0
-    return bnd
-
-
-def is_tip_2mm_reinforced_concrete(x):
-    """
-    Return a boolean list of tip types for each cartesian direction.
-
-    Returns a boolean list, whose elements are True when the particle is to
-    be measured for some displacement, velocity, force or acceleration
-    in that cartesian direction.
-
-    :arg x: Particle coordinate array of size (3,).
-    :type x: :class:`numpy.ndarray`
-    """
-    # Particle does not live on tip
-    tip = [None, None, None]
-    # Particle does live on tip
-    if ((x[2] < -0.001)):
-        tip[2] = 'force'
-    if ((x[2] > 0.133)):
-        tip[2] = 'reaction_force'
-    if ((x[0] > 1.0 - 2.0e-3)
-            and (x[0] < 1.0 + 2.0e-3)
-            and x[2] < 3.0e-3):
-        tip[2] = 'deflection'
-    return tip
-
-
-def is_rebar_2mm(x):
-    """ Function to determine whether the node coordinate is rebar
-    """
-    x_yz = x[1:]  # y and z coordinates for this node
-    bar_centers = [
-        # Tensile bars 15mm of cover
-        np.array((0.018, 0.110)),
-        np.array((0.044, 0.110))]
-
-    rad_t = 0.003
-
-    radii = [
-        rad_t,
-        rad_t]
-
-    costs = [np.sum(np.square(cent - x_yz) - (np.square(rad)))
-             for cent, rad in zip(bar_centers, radii)]
-    if any(c <= 0 for c in costs):
-        return True
-    else:
-        return False
-
-
-def is_bond_type_2mm_reinforced_concrete(x, y):
-    """is_bond_type."""
-    # If at the supports, then it does not break
-    # Particle does not live on a boundary
-    bnd = 0  # Concrete
-    # Displacement controlled particles on the bottom
-    if ((x[2] < 0.00)):
-        bnd = 1
-    # Clamped particles at the top left
-    if ((x[2] > 0.129)
-            and (x[0] > -0.003)
-            and (x[0] < 0.003)):
-        bnd = 1
-    # Clamped particles at the top right
-    if ((x[2] > 0.129)
-            and (x[0] > 1.997)
-            and (x[0] < 2.003)):
-        bnd = 1
-    bool1 = is_rebar_2mm(x)
-    bool2 = is_rebar_2mm(y)
-    if bool1 and bool2:
-        bnd = 2  # Steel
-    elif bool1 != bool2:
-        bnd = 3  # Interface
-    return bnd
-
-
-def is_displacement_boundary_2mm_reinforced_concrete(x):
-    """
-    Return a boolean list of displacement boundarys for each direction.
-
-    Returns a (3,) boolean list, whose elements are:
-        None where there is no boundary condition;
-        -1 where the boundary is displacement loaded in negative direction;
-        1 where the boundary is displacement loaded in positive direction;
-        0 where the boundary is clamped;
-
-    :arg x: Particle coordinate array of size (3,).
-    :type x: :class:`numpy.ndarray`
-    """
-    # Particle does not live on a boundary
-    bnd = [None, None, None]
-    # Displacement controlled particles
-    if ((x[2] < 0.00)):
-        bnd[2] = 1  # z direction +ve displacement controlled
-        bnd[1] = 0  # 0 out of plane deflection enforcement
-    # Fully clamped particles on the top left
-    if ((x[2] > 0.133) and (x[0]) < 1.0):
-        bnd[2] = 0
-        bnd[1] = 0
-        bnd[0] = 0
-    # Unconstrained to move in the x-direction
-    if ((x[2] > 0.133) and (x[0] > 1.0)):
-        bnd[2] = 0
-        bnd[1] = 0
-    return bnd
-
-
 def is_displacement_boundary_5mm(x):
     """
     Return a boolean list of displacement boundarys for each direction.
@@ -225,10 +18,6 @@ def is_displacement_boundary_5mm(x):
     bnd = [None, None, None]
 
     # Displacement controlled particles
-    # if (x[0] > 0.0824) and (x[0] < 0.0926) and (x[2] > 0.045):  # 0.05
-    #     bnd[2] = -1
-    #     # bnd[1] = 0
-
     if x[0] == 0.085 and x[2] == 0.05:
         bnd[2] = -1
 
@@ -239,155 +28,15 @@ def is_displacement_boundary_5mm(x):
         bnd[2] = -1
 
     # Clamped particles
-    if (x[0] > 0.025 - 5e-3) and (x[0] < 0.025 + 5e-3) and (x[2] < -0.005):  # 0.0
+    if (x[0] > 0.025 - 5e-3) and (x[0] < 0.025 + 5e-3) and (x[2] < -0.005):
         bnd[2] = 0
         bnd[1] = 0
-        # bnd[0] = 0
-    if (x[0] > 0.155 - 5e-3) and (x[0] < 0.155 + 5e-3) and (x[2] < -0.005):  # 0.150
+
+    if (x[0] > 0.155 - 5e-3) and (x[0] < 0.155 + 5e-3) and (x[2] < -0.005):
         bnd[2] = 0
         bnd[1] = 0
 
     return bnd
-
-
-def is_displacement_boundary_2mm(x):
-    """
-    Return a boolean list of displacement boundarys for each direction.
-
-    Returns a (3,) boolean list, whose elements are:
-        None where there is no boundary condition;
-        -1 where the boundary is displacement loaded in negative direction;
-        1 where the boundary is displacement loaded in positive direction;
-        0 where the boundary is clamped;
-
-    :arg x: Particle coordinate array of size (3,).
-    :type x: :class:`numpy.ndarray`
-    """
-    # Particle does not live on a boundary
-    bnd = [None, None, None]
-    # Displacement controlled particles
-    if ((x[0] > 0.0875 - 2e-3)
-            and (x[0] < 0.0875 + 2e-3)
-            and (x[2] > 0.05)):
-        bnd[2] = -1
-        bnd[1] = 0
-    # Clamped particles
-    if ((x[0] > 0.025 - 2e-3)
-            and (x[0] < 0.025 + 2e-3)
-            and (x[2] < 0.0)):
-        bnd[2] = 0
-        bnd[1] = 0
-        bnd[0] = 0
-    if ((x[0] > 0.150 - 2e-3)
-            and (x[0] < 0.150 + 2e-3)
-            and (x[2] < 0.0)):
-        bnd[2] = 0
-        bnd[1] = 0
-    return bnd
-
-
-def is_displacement_boundary_1mm(x):
-    """
-    Return a boolean list of displacement boundarys for each direction.
-
-    Returns a (3,) boolean list, whose elements are:
-        None where there is no boundary condition;
-        -1 where the boundary is displacement loaded in negative direction;
-        1 where the boundary is displacement loaded in positive direction;
-        0 where the boundary is clamped;
-
-    :arg x: Particle coordinate array of size (3,).
-    :type x: :class:`numpy.ndarray`
-    """
-    # Particle does not live on a boundary
-    bnd = [None, None, None]
-    # Displacement controlled particles
-    if ((x[0] > 0.0875 - 1e-3)
-            and (x[0] < 0.0875 + 1e-3)
-            and (x[2] > 0.05)):
-        bnd[2] = -1
-        bnd[1] = 0
-    # Clamped particles
-    if ((x[0] > 0.025 - 1e-3)
-            and (x[0] < 0.025 + 1e-3)
-            and (x[2] < 0.0)):
-        bnd[2] = 0
-        bnd[1] = 0
-        bnd[0] = 0
-    if ((x[0] > 0.150 - 1e-3)
-            and (x[0] < 0.150 + 1e-3)
-            and (x[2] < 0.0)):
-        bnd[2] = 0
-        bnd[1] = 0
-    return bnd
-
-
-def is_tip_1mm(x):
-    """
-    Return a boolean list of tip types for each cartesian direction.
-
-    Returns a boolean list, whose elements are True when the particle is to
-    be measured for some displacement, velocity, force or acceleration
-    in that cartesian direction.
-
-    :arg x: Particle coordinate array of size (3,).
-    :type x: :class:`numpy.ndarray`
-    """
-    # Particle does not live on tip
-    tip = [None, None, None]
-    # Particle does live on tip
-
-    if ((x[0] > 0.0875 - 1e-3)
-            and (x[0] < 0.0875 + 1e-3)):
-        if x[2] > 0.05:
-            tip[2] = 'force'
-        if ((x[2] > 0.025 - 1.0e-3)
-                and (x[2] < 0.025 + 1.0e-3)):
-            tip[2] = 'deflection'
-    if ((x[0] > 0.0875 + 0.025 - 1.0e-3)
-            and (x[0] < 0.0875 + 0.025 + 1.0e-3)
-            and x[2] < 1.0e-3):
-        tip[0] = 'CMOD_right'
-    if ((x[0] > 0.0875 - 0.025 - 1.0e-3)
-            and (x[0] < 0.0875 - 0.025 + 1.0e-3)
-            and x[2] < 1.0e-3):
-        tip[0] = 'CMOD_left'
-
-    return tip
-
-
-def is_tip_2mm(x):
-    """
-    Return a boolean list of tip types for each cartesian direction.
-
-    Returns a boolean list, whose elements are True when the particle is to
-    be measured for some displacement, velocity, force or acceleration
-    in that cartesian direction.
-
-    :arg x: Particle coordinate array of size (3,).
-    :type x: :class:`numpy.ndarray`
-    """
-    # Particle does not live on tip
-    tip = [None, None, None]
-    # Particle does live on tip
-
-    if ((x[0] > 0.0875 - 2e-3)
-            and (x[0] < 0.0875 + 2e-3)):
-        if x[2] > 0.05:
-            tip[2] = 'force'
-        if ((x[2] > 0.025 - 2.0e-3)
-                and (x[2] < 0.025 + 2.0e-3)):
-            tip[2] = 'deflection'
-    if ((x[0] > 0.0875 + 0.025 - 1.0e-3)
-            and (x[0] < 0.0875 + 0.025 + 1.0e-3)
-            and x[2] < 2.0e-3):
-        tip[0] = 'CMOD_right'
-    if ((x[0] > 0.0875 - 0.025 - 1.0e-3)
-            and (x[0] < 0.0875 - 0.025 + 1.0e-3)
-            and x[2] < 2.0e-3):
-        tip[0] = 'CMOD_left'
-
-    return tip
 
 
 def is_tip_5mm(x):
@@ -403,21 +52,12 @@ def is_tip_5mm(x):
     """
     # Particle does not live on tip
     tip = [None, None, None]
-    # Particle does live on tip
+
+
     if (x[0] > 0.0875 - 5.0e-3) and (x[0] < 0.0875 + 5.0e-3):
         if (x[2] > 0.025 - 5.0e-3) and (x[2] < 0.025 + 5.0e-3):
             tip[2] = 'deflection'
-    # if (x[0] > 0.0824) and (x[0] < 0.0926) and (x[2] > 0.045):  # 0.05
-    #     tip[2] = 'force'
 
-    # if x[0] == 0.085 and x[2] == 0.05:
-    #     tip[2] = 'force'
-    #
-    # if x[0] == 0.09 and x[2] == 0.05:
-    #     tip[2] = 'force'
-    #
-    # if x[0] == 0.095 and x[2] == 0.05:
-    #     tip[2] = 'force'
 
     if x[0] == 0.025 and x[2] == -0.01:
         tip[2] = 'force'
@@ -425,17 +65,10 @@ def is_tip_5mm(x):
     if x[0] == 0.155 and x[2] == -0.01:
         tip[2] = 'force'
 
-    # if ((x[0] > 0.0875 + 0.025 - 5.0e-3 / 2)
-    #         and (x[0] < 0.0875 + 0.025 + 5.0e-3 / 2)
-    #         and x[2] == 0.005):  # x[2] < 5.0e-3
-    #     tip[0] = 'CMOD_right'
-    # if ((x[0] > 0.0875 - 0.025 - 5.0e-3 / 2)
-    #         and (x[0] < 0.0875 - 0.025 + 5.0e-3 / 2)
-    #         and x[2] == 0.005):
-    #     tip[0] = 'CMOD_left'
 
     if x[0] == 0.125 and x[1] == 0.005 and x[2] == 0.005:
         tip[0] = 'CMOD_right'
+
     if x[0] == 0.055 and x[1] == 0.005 and x[2] == 0.005:
         tip[0] = 'CMOD_left'
 
@@ -444,68 +77,10 @@ def is_tip_5mm(x):
 
 def is_bond_type_5mm(x, y):
     """is_bond_type."""
-    # If at the supports, then it does not break
-    # Particle does not live on a boundary
-    bnd = 0
 
-    # Displacement controlled particles
-    if (x[0] > 0.0824) and (x[0] < 0.0926) and (x[2] > 0.05):
-        # bnd = 1
-        a = 1
-    # Clamped particles
-    if (x[0] > 0.025 - 5e-3) and (x[0] < 0.025 + 5e-3) and (x[2] < 0.0):
-        # bnd = 1
-        a = 1
-    if (x[0] > 0.150 - 5e-3) and (x[0] < 0.150 + 5e-3) and (x[2] < 0.0):
-        # bnd = 1
-        a = 1
+    bnd = 0 # Bond can break
 
     return bnd
-
-
-def is_bond_type_2mm(x, y):
-    """is_bond_type."""
-    # If at the supports, then it does not break
-    # Particle does not live on a boundary
-    bnd = 0
-    # Displacement controlled particles
-    if ((x[0] > 0.0864)
-            and (x[0] < 0.0886)
-            and (x[2] > 0.05)):
-        bnd = 1
-    # Clamped particles
-    if ((x[0] > 0.023)
-            and (x[0] < 0.027)
-            and (x[2] < 0.0)):
-        bnd = 1
-    if ((x[0] > 0.148)
-            and (x[0] < 0.152)
-            and (x[2] < 0.0)):
-        bnd = 1
-    return bnd
-
-
-def is_bond_type_1mm(x, y):
-    """is_bond_type."""
-    # If at the supports, then it does not break
-    # Particle does not live on a boundary
-    bnd = 0
-    # Displacement controlled particles
-    if ((x[0] > 0.0875 - 1e-3)
-            and (x[0] < 0.0875 + 1e-3)
-            and (x[2] > 0.05)):
-        bnd = 1
-    # Clamped particles
-    if ((x[0] > 0.025 - 1e-3)
-            and (x[0] < 0.025 + 1e-3)
-            and (x[2] < 0.0)):
-        bnd = 1
-    if ((x[0] > 0.150 - 1e-3)
-            and (x[0] < 0.150 + 1e-3)
-            and (x[2] < 0.0)):
-        bnd = 1
-    return bnd
-
 
 def _increment_displacement(coefficients, build_time, step, ease_off,
                             max_displacement_rate, build_displacement,
@@ -770,7 +345,8 @@ def smooth_step_data(start_time_step, final_time_step, start_value, final_value)
 
     for current_time_step in range(start_time_step, final_time_step):
         xi = (current_time_step - start_time_step) / (final_time_step - start_time_step)
-        alpha[current_time_step] = start_value + (final_value - start_value) * xi**3 * (10 - 15 * xi + 6 * xi**2)
+        alpha[current_time_step] = start_value + (final_value - start_value) * xi**3 \
+                                   * (10 - 15 * xi + 6 * xi**2)
 
     return alpha
 
