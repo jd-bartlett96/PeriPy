@@ -10,7 +10,8 @@ You can find an examples of how to use the package under ``peripy/examples/``.
 
 There are two examples that will output mesh files that can be viewed in `Paraview <https://www.paraview.org/>`_.
 
-**Example 1**
+Example 1
+^^^^^^^^^
 
 Run the first example by typing ``python peripy/examples/example1/example.py``
 
@@ -20,7 +21,8 @@ uniform velocity displacements on the left-hand side and right-hand side of
 2.5x10^-6 metres per time-step. The ``--opencl`` argument toggles between OpenCL
 and cython implementations. The ``--profile`` argument generates profiling information for the example.
 
-**Example 2**
+Example 2
+^^^^^^^^^
 
 Run the second example by typing ``python peripy/examples/example2/example.py``
 
@@ -33,6 +35,17 @@ model are calculated, they are also stored in file '1650beam13539_model.h5'.
 In subsequent simulations, the arrays are loaded from this h5 file instead of
 being calculated again, therefore reducing the overhead of initiating the
 model. The ``--profile`` argument generates profiling information for the example
+
+Example 3
+^^^^^^^^^
+
+Run the third example by typing ``python peripy/examples/example3/example_trilinear.py``
+
+Example 3 demonstrates the simulation of a simply supported unnotched plain concrete beam in three-point bending. The chosen problem was tested experimentally by Grégoire et al. [1]. The problem is simulated using a 3D model and a trilinear constitutive model. The numerical load-CMOD curve is compared against the experimental data...
+
+[1] Grégoire, D., Rojas-Solano, L. B., and Pijaudier-Cabot, G. (2013). Failure and size effect for notched and unnotched concrete beams. International Journal for Numerical and Analytical Methods in Geomechanics, 37(10):1434–1452.
+
+
 
 The Model class
 ---------------

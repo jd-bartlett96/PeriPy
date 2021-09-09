@@ -6,6 +6,8 @@ from .peridynamics import damage, bond_force, update_displacement, break_bonds
 import pyopencl as cl
 import pathlib
 import numpy as np
+from .core import calculate_stretch, calculate_bsf_trilinear, calculate_bsf_non_linear, calculate_bond_force,\
+    calculate_nodal_force, euler_cromer, calculate_damage
 
 
 class Integrator(ABC):
@@ -455,6 +457,191 @@ class Euler(Integrator):
     def write(self, damage, u, ud, udd, force, body_force, nlist, n_neigh):
         """Return the state variable arrays."""
         damage = self._damage(self.n_neigh)
+        return (self.u, self.ud, self.udd, self.force, self.body_force, damage,
+                self.nlist, self.n_neigh)
+
+
+class EulerJit(Integrator):
+    r"""
+    Euler integrator for cython.
+
+    C implementation of the Euler integrator generated using Cython. Uses CPU
+    only. The Euler method is a first-order numerical integration method. The
+    integration is given by,
+
+    .. math::
+        u(t + \delta t) = u(t) + \delta t f(t),
+
+    where :math:`u(t)` is the displacement at time :math:`t`, :math:`f(t)` is
+    the force density at time :math:`t`, :math:`\delta t` is the time step.
+    """
+
+    def __init__(self, dt):
+        """
+        Create an :class:`Euler` integrator object.
+
+        :arg float dt: The length of time (in seconds [s]) of one time-step.
+
+        :returns: An :class:`Euler` object
+        """
+        self.dt = dt
+        self.context = None     # Not an OpenCL integrator
+        # TODO: should the bondlist be built within the class?
+
+    def __call__(self, displacement_bc_magnitude, force_bc_magnitude):
+        """
+        Conduct one iteration of the integrator.
+
+        :arg float displacement_bc_magnitude: the magnitude applied to the
+             displacement boundary conditions for the current time-step.
+        :arg float force_bc_magnitude: the magnitude applied to the force
+            boundary conditions for the current time-step.
+        """
+
+        # Calculate bond stretch
+        deformed_coordinates = self.coords + self.u
+        deformed_X, deformed_Y, deformed_Z, deformed_length, stretch = self._calculate_stretch(deformed_coordinates)
+
+        # Calculate bond softening factor
+        s0 = np.float64(1.05e-4)
+        s1 = np.float64(6.90e-4)
+        sc = np.float64(5.56e-3)
+        self.bond_softening_factor, self.flag_bsf = self._calculate_bsf_trilinear(stretch, s0, s1, sc)
+
+        # Calculate bond forces
+        bond_stiffness = np.float64(2.32e+18)
+        cell_volume = np.float64((5/1000) ** 3)
+        bond_force_X, bond_force_Y, bond_force_Z = self._calculate_bond_forces(bond_stiffness, stretch, cell_volume,
+                                                                                deformed_X, deformed_Y, deformed_Z,
+                                                                                deformed_length)
+
+        # Calculate nodal forces
+        nodal_forces = self._calculate_nodal_forces(bond_force_X, bond_force_Y, bond_force_Z)
+
+        # Time integration
+        self.u = self._time_integration(nodal_forces, displacement_bc_magnitude)
+
+        self.force = nodal_forces
+        self.body_force = nodal_forces
+
+    def create_buffers(self, nlist, n_neigh, bond_stiffness, critical_stretch, plus_cs,
+                       u, ud, udd, force, body_force, damage, regimes, nregimes,
+                       nbond_types):
+        """
+        Initiate arrays that are dependent on simulation parameters.
+
+        Initiates arrays that are dependent on
+        :meth:`peripy.model.Model.simulate` parameters. Since
+        :class:`Euler` uses cython in place of OpenCL, there are no
+        buffers to be created, just python objects that are used as arguments
+        of the cython functions.
+        """
+
+        self.nlist = nlist
+        self.n_neigh = n_neigh
+        self.bond_stiffness = bond_stiffness
+        self.critical_stretch = critical_stretch
+        self.u = u
+        self.ud = ud
+        self.udd = udd
+        self.force = force
+        self.body_force = body_force
+
+    def build(self, nnodes, degrees_freedom, max_neighbours, coords, volume,
+              family, bc_types, bc_values, force_bc_types, force_bc_values,
+              stiffness_corrections, bond_types, densities, bondlist, bond_length):
+        """
+        Initiate integrator arrays.
+
+        Since :class:`Euler` uses cython in place of OpenCL, there are no
+        OpenCL programs or buffers to be built/created. Instead, this method
+        instantiates the arrays and variables that are independent of
+        :meth:`peripy.model.Model.simulate` parameters as python
+        objects that are used as arguments of the cython functions.
+        """
+        self.nnodes = nnodes
+        self.coords = coords
+        self.family = family
+        self.volume = volume
+        self.bc_types = bc_types
+        self.bc_values = bc_values
+        self.force_bc_types = force_bc_types
+        self.force_bc_values = force_bc_values
+        self.bondlist = bondlist
+        self.bond_length = bond_length
+        nbonds = len(bondlist)
+        self.bond_softening_factor = np.zeros(nbonds)
+        self.flag_bsf = np.zeros(nbonds)
+        self.nodal_velocity = np.zeros((nnodes,3))
+        self.density = 2400
+
+    def _create_special_buffers(self):
+        """Create buffers programs that are special to the Euler integrator."""
+        # There are none
+
+    def _build_special(self):
+        """Build programs that are special to the Euler integrator."""
+        # There are none
+
+    def _calculate_stretch(self, deformed_coordinates):
+        deformed_X, deformed_Y, deformed_Z, deformed_length, stretch = calculate_stretch(self.bondlist,
+                                                                                         deformed_coordinates,
+                                                                                         self.bond_length)
+        return deformed_X, deformed_Y, deformed_Z, deformed_length, stretch
+
+    def _calculate_bsf_trilinear(self, stretch, s0, s1, sc):
+        self.bond_softening_factor, self.flag_bsf = calculate_bsf_trilinear(stretch, s0, s1, sc, self.bond_softening_factor, self.flag_bsf)
+        return self.bond_softening_factor, self.flag_bsf
+
+    def _calculate_bsf_non_linear(self, stretch, s0, sc):
+        self.bond_softening_factor, self.flag_bsf = calculate_bsf_non_linear(stretch, s0, sc, self.bond_softening_factor, self.flag_bsf)
+        return self.bond_softening_factor, self.flag_bsf
+
+    def _calculate_bond_forces(self, bond_stiffness, stretch, cell_volume,
+                                    deformed_X, deformed_Y, deformed_Z, deformed_length):
+        bond_force_X, bond_force_Y, bond_force_Z = calculate_bond_force(bond_stiffness, self.bond_softening_factor,
+                                                                        stretch, cell_volume, deformed_X, deformed_Y,
+                                                                        deformed_Z, deformed_length)
+        return bond_force_X, bond_force_Y, bond_force_Z
+
+    def _calculate_nodal_forces(self, bond_force_X, bond_force_Y, bond_force_Z):
+        nodal_forces = calculate_nodal_force(self.nnodes, self.bondlist, bond_force_X, bond_force_Y, bond_force_Z)
+        return nodal_forces
+
+    def _time_integration(self, nodal_force, bc_scale):
+        u = euler_cromer(nodal_force, self.u, self.nodal_velocity, self.density, self.bc_types,
+                         self.bc_values, bc_scale, self.dt)
+        return u
+
+    def _calculate_damage(self):
+        damage = calculate_damage(self.family, self.bondlist, 1 - self.flag_bsf)
+        return damage
+
+    def _update_displacement(self, u, force, displacement_bc_magnitude):
+        update_displacement(
+            u, self.bc_values, self.bc_types, force, displacement_bc_magnitude,
+            self.dt)
+
+    def _break_bonds(self, u, nlist, n_neigh):
+        """Break bonds which have exceeded the critical strain."""
+        break_bonds(self.coords + u, self.coords, nlist, n_neigh,
+                    self.critical_stretch)
+
+    # def _damage(self, n_neigh):
+    #     """Calculate bond damage."""
+    #     return damage(n_neigh, self.family)
+
+    def _bond_force(self, force_bc_magnitude, u, nlist, n_neigh):
+        """Calculate the force due to bonds acting on each node."""
+        force = bond_force(
+            self.coords + u, self.coords, nlist, n_neigh,
+            self.volume, self.bond_stiffness, self.force_bc_values,
+            self.force_bc_types, force_bc_magnitude)
+        return force
+
+    def write(self, damage, u, ud, udd, force, body_force, nlist, n_neigh):
+        """Return the state variable arrays."""
+        damage = self._calculate_damage()
         return (self.u, self.ud, self.udd, self.force, self.body_force, damage,
                 self.nlist, self.n_neigh)
 
