@@ -463,17 +463,8 @@ class Euler(Integrator):
 
 class EulerJit(Integrator):
     r"""
-    Euler integrator for cython.
-
-    C implementation of the Euler integrator generated using Cython. Uses CPU
-    only. The Euler method is a first-order numerical integration method. The
-    integration is given by,
-
-    .. math::
-        u(t + \delta t) = u(t) + \delta t f(t),
-
-    where :math:`u(t)` is the displacement at time :math:`t`, :math:`f(t)` is
-    the force density at time :math:`t`, :math:`\delta t` is the time step.
+    Euler integrator written in pure python and optimised using numba (jit 
+    compiler).
     """
 
     def __init__(self, dt, s0, s1, sc, c, cell_volume):
