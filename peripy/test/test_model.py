@@ -96,12 +96,13 @@ def basic_models_meshless(data_path, request, simple_displacement_boundary):
     """Create a basic 2D meshless model object."""
     mesh_file = data_path / "example_mesh_meshless.msh"
     euler = request.param(dt=1e-3)
-    with pytest.warns(UserWarning, match='setting Model.mesh_connectivity=False'):
-        model = Model(mesh_file, integrator=euler, horizon=0.1,
-                    critical_stretch=0.05,
-                    bond_stiffness=18.0 * 0.05 / (np.pi * 0.1**4),
-                    is_displacement_boundary=simple_displacement_boundary,
-                    volume_total=1.0)
+    with pytest.warns(UserWarning, match='setting Model.mesh_connectivity'):
+        model = Model(
+            mesh_file, integrator=euler, horizon=0.1,
+            critical_stretch=0.05,
+            bond_stiffness=18.0 * 0.05 / (np.pi * 0.1**4),
+            is_displacement_boundary=simple_displacement_boundary,
+            volume_total=1.0)
         return model
 
 
@@ -279,9 +280,11 @@ class TestVolume:
         """Test exception when volume_total not provided in meshless mode."""
         integrator = integrator(1)
         mesh_file = data_path / "example_mesh_meshless.msh"
-        with pytest.warns(UserWarning, match='setting Model.mesh_connectivity=False'):
+        with pytest.warns(
+                UserWarning, match='setting Model.mesh_connectivity=False'):
             with pytest.raises(TypeError) as exception:
-                Model(mesh_file, integrator, horizon=0.1, critical_stretch=0.05,
+                Model(
+                    mesh_file, integrator, horizon=0.1, critical_stretch=0.05,
                     bond_stiffness=18.0 * 0.05 / (np.pi * 0.0001**4),
                     dimensions=3)
                 assert (str("meshless mode, a total mesh volume")

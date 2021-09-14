@@ -523,7 +523,7 @@ class Model(object):
             meshio.write_points_cells(
                 filename,
                 points=self.coords,
-                cells = [],
+                cells=[],
                 point_data={
                     "damage": damage,
                     "displacements": displacements
@@ -532,18 +532,18 @@ class Model(object):
                 )
         else:
             meshio.write_points_cells(
-            filename,
-            points=self.coords,
-            cells=[
-                (self.mesh_elements.connectivity, self.mesh_connectivity),
-                (self.mesh_elements.boundary, self.mesh_boundary)
-                ],
-            point_data={
-                "damage": damage,
-                "displacements": displacements
-                },
-            file_format=file_format
-            )
+                filename,
+                points=self.coords,
+                cells=[
+                    (self.mesh_elements.connectivity, self.mesh_connectivity),
+                    (self.mesh_elements.boundary, self.mesh_boundary)
+                    ],
+                point_data={
+                    "damage": damage,
+                    "displacements": displacements
+                    },
+                file_format=file_format
+                )
 
     def _set_neighbour_list(self, coords, horizon, nnodes,
                             initial_crack=None, context=None):
