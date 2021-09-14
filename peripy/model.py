@@ -475,33 +475,46 @@ class Model(object):
             self.bc_values, self.force_bc_types, self.force_bc_values,
             self.stiffness_corrections, self.bond_types, self.densities)
 
-    def _read_mesh(self, filename):
+    def _read_mesh(self, mesh_file):
         """
         Read the model's nodes, connectivity and boundary from a mesh file.
 
-        :arg str filename: Path of the mesh file to read
+        :arg mesh_file: Path of the mesh file to read or
+            :class:`numpy.ndarray` or list of lists containing
+            coordinates of nodes.
+        :type mesh_file: str or :class:`numpy.ndarray` or list
 
         :returns: None
         :rtype: NoneType
         """
-        mesh = meshio.read(filename)
-        # Get coordinates, encoded as mesh points
-        self.coords = np.array(mesh.points, dtype=np.float64)
-        self.nnodes = self.coords.shape[0]
-        try:
-            # Get connectivity, mesh triangle cells
-            self.mesh_connectivity = mesh.cells_dict[
-                self.mesh_elements.connectivity
-                ]
-            # Get boundary connectivity, mesh lines
-            self.mesh_boundary = mesh.cells_dict[self.mesh_elements.boundary]
-        except KeyError as e:
+        if isinstance(mesh_file, np.ndarray) or isinstance(mesh_file, list):
+            self.coords = np.array(mesh_file, dtype=np.float64)
             self.mesh_connectivity = False
             self.mesh_boundary = False
             warnings.warn(
-                "KeyError: {}, setting Model.mesh_connectivity=False and in "
-                "meshless mode: output `mesh' will not be connected, but it"
-                " will be a point cloud.".format(e))
+                    "Mesh not supplied. Setting Model.mesh_connectivity=False "
+                    "and in meshless mode: output `mesh' will not be connected"
+                    ", but it will be a point cloud.")
+        else:
+            mesh = meshio.read(mesh_file)
+            # Get coordinates, encoded as mesh points
+            self.coords = np.array(mesh.points, dtype=np.float64)
+            try:
+                # Get connectivity, mesh triangle cells
+                self.mesh_connectivity = mesh.cells_dict[
+                    self.mesh_elements.connectivity
+                    ]
+                # Get boundary connectivity, mesh lines
+                self.mesh_boundary = mesh.cells_dict[
+                    self.mesh_elements.boundary]
+            except KeyError as e:
+                self.mesh_connectivity = False
+                self.mesh_boundary = False
+                warnings.warn(
+                    "KeyError: {}, setting Model.mesh_connectivity=False and i"
+                    "n meshless mode: output `mesh' will not be connected, but"
+                    " it will be a point cloud.".format(e))
+        self.nnodes = self.coords.shape[0]
 
     def write_mesh(self, filename, damage=None, displacements=None,
                    file_format=None):
