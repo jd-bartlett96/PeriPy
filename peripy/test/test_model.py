@@ -13,6 +13,47 @@ import pytest
 @pytest.fixture(
     scope="session",
     params=[Euler, pytest.param(EulerCL, marks=context_available)])
+def basic_models_1d(data_path, request, simple_displacement_boundary):
+    """Create a basic 1D model object."""
+    mesh_file = data_path / "example_mesh_1d.vtk"
+    euler = request.param(dt=1e-3)
+    model = Model(mesh_file, integrator=euler, horizon=0.2,
+                  critical_stretch=0.05,
+                  bond_stiffness=18.0 * 0.05 / (np.pi * 0.1**4),
+                  is_displacement_boundary=simple_displacement_boundary,
+                  dimensions=1)
+    return model
+
+
+@pytest.fixture()
+def basic_model_1d(data_path, simple_displacement_boundary):
+    """Create a basic 1D model object using a cython integrator."""
+    mesh_file = data_path / "example_mesh_1d.vtk"
+    euler = Euler(dt=1e-3)
+    model = Model(mesh_file, integrator=euler, horizon=1.1,
+                  critical_stretch=0.05,
+                  bond_stiffness=18.0 * 0.05 / (np.pi * 0.1**4),
+                  is_displacement_boundary=simple_displacement_boundary,
+                  dimensions=1)
+    return model, euler
+
+
+@pytest.fixture()
+def basic_model_1d_cl(data_path, simple_displacement_boundary):
+    """Create a basic 1D model object using an OpenCL integrator."""
+    mesh_file = data_path / "example_mesh_1d.vtk"
+    euler = EulerCL(dt=1e-3)
+    model = Model(mesh_file, integrator=euler, horizon=0.1,
+                  critical_stretch=0.05,
+                  bond_stiffness=18.0 * 0.05 / (np.pi * 0.1**4),
+                  is_displacement_boundary=simple_displacement_boundary,
+                  dimensions=1)
+    return model, euler
+
+
+@pytest.fixture(
+    scope="session",
+    params=[Euler, pytest.param(EulerCL, marks=context_available)])
 def basic_models_2d(data_path, request, simple_displacement_boundary):
     """Create a basic 2D model object."""
     mesh_file = data_path / "example_mesh.vtk"
@@ -106,8 +147,33 @@ def basic_models_meshless(data_path, request, simple_displacement_boundary):
         return model
 
 
+@pytest.fixture(
+    scope="session",
+    params=[Euler, pytest.param(EulerCL, marks=context_available)])
+def basic_models_meshless_1d(data_path, request, simple_displacement_boundary):
+    """Create a basic 1D meshless model object."""
+    coords = np.linspace(0.0, 1.0, 11)
+    euler = request.param(dt=1e-3)
+    with pytest.warns(UserWarning, match='setting Model.mesh_connectivity'):
+        model = Model(
+            coords, integrator=euler, horizon=0.1,
+            critical_stretch=0.05,
+            bond_stiffness=18.0 * 0.05 / (np.pi * 0.1**4),
+            is_displacement_boundary=simple_displacement_boundary,
+            volume_total=1.0,
+            dimensions=1)
+        return model
+
+
 class TestDimension:
     """Test the dimension argument of the Model class."""
+
+    def test_1d(self, basic_models_1d):
+        """Test initialisation of a 1D model."""
+        model = basic_models_1d
+
+        assert model.mesh_elements.connectivity == 'line'
+        assert model.mesh_elements.boundary == 'vertex'
 
     def test_2d(self, basic_models_2d):
         """Test initialisation of a 2D model."""
@@ -123,7 +189,7 @@ class TestDimension:
         assert model.mesh_elements.connectivity == 'tetra'
         assert model.mesh_elements.boundary == 'triangle'
 
-    @pytest.mark.parametrize("dimensions", [1, 4])
+    @pytest.mark.parametrize("dimensions", [0, 4])
     def test_dimensionality_error(self, dimensions):
         """Test invalid dimension arguments."""
         integrator = Euler(dt=1e-3)
@@ -230,6 +296,32 @@ def test_read_meshless_coords(
         assert model.mesh_boundary is False
         assert np.allclose(model.coords[69], np.array(
             [0, 0.4888888888888889, 0]))
+
+
+@pytest.fixture(
+    scope="session",
+    params=[Euler, pytest.param(EulerCL, marks=context_available)])
+def test_read_meshless_coords_1d(
+        request, simple_displacement_boundary):
+    """Test reading a 1d mesh with only coordinates supplied."""
+    coords = np.linspace(0.0, 1.0, 11)
+    euler = request.param(dt=1e-3)
+    with pytest.warns(
+            UserWarning, match='Mesh not supplied.'
+            ' Setting Model.mesh_connectiviy=False'):
+        # Create new meshless model with only coordinates
+        model = Model(
+            coords, integrator=euler, horizon=0.2,
+            critical_stretch=0.05,
+            bond_stiffness=18.0 * 0.05 / (np.pi * 0.1**4),
+            is_displacement_boundary=simple_displacement_boundary,
+            volume_total=1.0)
+        assert model.coords.shape == (11,)
+        assert model.nnodes == 11
+        assert model.mesh_connectivity is False
+        assert model.mesh_boundary is False
+        assert np.allclose(model.coords[1], np.array(
+            [0.1]))
 
 
 @pytest.fixture(scope="class")

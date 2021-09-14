@@ -15,6 +15,8 @@ import meshio
 import sklearn.neighbors as neighbors
 
 _MeshElements = namedtuple("MeshElements", ["connectivity", "boundary"])
+_mesh_elements_1d = _MeshElements(connectivity="line",
+                                  boundary="vertex")
 _mesh_elements_2d = _MeshElements(connectivity="triangle",
                                   boundary="line")
 _mesh_elements_3d = _MeshElements(connectivity="tetra",
@@ -216,7 +218,9 @@ class Model(object):
         # Set model dimensionality
         self.dimensions = dimensions
 
-        if dimensions == 2:
+        if dimensions == 1:
+            self.mesh_elements = _mesh_elements_1d
+        elif dimensions == 2:
             self.mesh_elements = _mesh_elements_2d
         elif dimensions == 3:
             self.mesh_elements = _mesh_elements_3d
@@ -645,7 +649,10 @@ class Model(object):
             tmp = volume_total / self.nnodes
             volume = tmp * np.ones(self.nnodes)
         else:
-            if dimensions == 2:
+            if dimensions == 1:
+                # element is a line
+                element_nodes = 2
+            elif dimensions == 2:
                 # element is a triangle
                 element_nodes = 3
             elif dimensions == 3:
@@ -654,10 +661,16 @@ class Model(object):
 
             for nodes in self.mesh_connectivity:
                 # Calculate volume/area or element
+                if dimensions == 1:
+                    a, b = self.coords[nodes]
+
+                    # Length of a line
+                    i = b - a
+                    element_volume = np.linalg.norm(i)
                 if dimensions == 2:
                     a, b, c = self.coords[nodes]
 
-                    # Area of a trianble
+                    # Area of a triangle
                     i = b - a
                     j = c - a
                     element_volume = 0.5 * np.linalg.norm(np.cross(i, j))
@@ -938,7 +951,9 @@ class Model(object):
         # Post initial crack initiation connectivity
         nlist, n_neigh = self.initial_connectivity
 
-        if self.dimensions == 2:
+        if self.dimensions == 1:
+            family_volume_bulk = np.float64(2 * self.horizon)
+        elif self.dimensions == 2:
             family_volume_bulk = np.float64(np.pi*np.power(self.horizon, 2))
         elif self.dimensions == 3:
             family_volume_bulk = np.float64(
@@ -1665,7 +1680,7 @@ class DimensionalityError(Exception):
         :rtype: :class:`DimensionalityError`
         """
         message = (
-                "The number of dimensions must be 2 or 3,"
+                "The number of dimensions must be 1, 2 or 3,"
                 f" {dimensions} was given."
                 )
 
