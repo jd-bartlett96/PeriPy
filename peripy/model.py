@@ -40,7 +40,7 @@ class Model(object):
     """
 
     def __init__(self, mesh_file, integrator, horizon, critical_stretch,
-                 bond_stiffness, transfinite=0,
+                 bond_stiffness,
                  volume_total=None, write_path=None, connectivity=None,
                  family=None, volume=None, initial_crack=None, dimensions=2,
                  is_density=None, is_bond_type=None,
@@ -80,12 +80,8 @@ class Model(object):
             or a float value of the bond stiffness the Peridynamic bond-based
             prototype microelastic brittle (PMB) model.
         :type bond_stiffness: :class:`numpy.ndarray` or float
-        :arg bool transfinite: Set to 1 for Cartesian cubic (tensor grid) mesh.
-            Set to 0 for a tetrahedral mesh (default). If set to 1, the
-            volumes of the nodes are approximated as the average volume of
-            nodes on a cuboidal tensor-grid mesh.
         :arg float volume_total: Total volume of the mesh. Must be provided if
-            transfinite mode (transfinite=1) is used.
+            meshless mode (Model.mesh_connectivity=False) is used.
         :arg write_path: The path where the model arrays, (volume, family,
             connectivity, stiffness_corrections, bond_types) should be
             written to file to avoid doing time expensive calculations each
@@ -186,7 +182,7 @@ class Model(object):
             University of Nebraska-Lincoln, Department of Mechanical &
             Materials Engineering (September 2010)] is used. Set to None:
             The 'Full Volume algorithm' is used; partial nodal volumes are
-            approximated by their full nodal volumes. Defauly None.
+            approximated by their full nodal volumes. Default None.
         :arg int micromodulus_function: A flag variable denoting the
             normalised micromodulus function. Set to 0: A conical micromodulus
             function is used, which is normalised such that the maximum value
@@ -228,14 +224,14 @@ class Model(object):
             raise DimensionalityError(dimensions)
 
         # Read coordinates and connectivity from mesh file
-        self._read_mesh(mesh_file, transfinite)
+        self._read_mesh(mesh_file)
 
         # Calculate the volume for each node, if None is provided
         if volume is None:
             # Calculate the volume for each node
             this_may_take_a_while(self.nnodes, 'volume')
             self.volume = self._set_volumes(
-                transfinite, volume_total)
+                volume_total)
             if self.write_path is not None:
                 write_array(self.write_path, "volume", self.volume)
         elif type(volume) == np.ndarray:
@@ -479,7 +475,7 @@ class Model(object):
             self.bc_values, self.force_bc_types, self.force_bc_values,
             self.stiffness_corrections, self.bond_types, self.densities)
 
-    def _read_mesh(self, filename, transfinite):
+    def _read_mesh(self, filename):
         """
         Read the model's nodes, connectivity and boundary from a mesh file.
 
@@ -489,19 +485,23 @@ class Model(object):
         :rtype: NoneType
         """
         mesh = meshio.read(filename)
-
         # Get coordinates, encoded as mesh points
         self.coords = np.array(mesh.points, dtype=np.float64)
         self.nnodes = self.coords.shape[0]
-
-        if not transfinite:
+        try:
             # Get connectivity, mesh triangle cells
             self.mesh_connectivity = mesh.cells_dict[
                 self.mesh_elements.connectivity
                 ]
-
             # Get boundary connectivity, mesh lines
             self.mesh_boundary = mesh.cells_dict[self.mesh_elements.boundary]
+        except KeyError as e:
+            self.mesh_connectivity = False
+            self.mesh_boundary = False
+            warnings.warn(
+                "KeyError: {}, setting Model.mesh_connectivity=False and in "
+                "meshless mode: output `mesh' will not be connected, but it"
+                " will be a point cloud.".format(e))
 
     def write_mesh(self, filename, damage=None, displacements=None,
                    file_format=None):
@@ -520,19 +520,31 @@ class Model(object):
         :returns: None
         :rtype: NoneType
         """
-        meshio.write_points_cells(
-            filename,
-            points=self.coords,
-            cells=[
-                (self.mesh_elements.connectivity, self.mesh_connectivity),
-                (self.mesh_elements.boundary, self.mesh_boundary)
-                ],
-            point_data={
-                "damage": damage,
-                "displacements": displacements
-                },
-            file_format=file_format
-            )
+        if self.mesh_connectivity is False:
+            meshio.write_points_cells(
+                filename,
+                points=self.coords,
+                cells=[],
+                point_data={
+                    "damage": damage,
+                    "displacements": displacements
+                    },
+                file_format=file_format
+                )
+        else:
+            meshio.write_points_cells(
+                filename,
+                points=self.coords,
+                cells=[
+                    (self.mesh_elements.connectivity, self.mesh_connectivity),
+                    (self.mesh_elements.boundary, self.mesh_boundary)
+                    ],
+                point_data={
+                    "damage": damage,
+                    "displacements": displacements
+                    },
+                file_format=file_format
+                )
 
     def _set_neighbour_list(self, coords, horizon, nnodes,
                             initial_crack=None, context=None):
@@ -597,30 +609,26 @@ class Model(object):
 
         return (family, nlist, n_neigh, max_neighbours)
 
-    def _set_volumes(self, transfinite, volume_total):
+    def _set_volumes(self, volume_total):
         """
         Calculate the volume (or area) of each node.
 
-        :arg bool transfinite: Set to 1 for Cartesian cubic (tensor grid) mesh.
-            Set to 0 for a tetrahedral mesh (default). If set to 1, the
-            volumes of the nodes are approximated as the average volume of
-            nodes on a cuboidal tensor-grid mesh.
         :arg float volume_total: Total volume of the mesh. Must be provided if
-            transfinite mode (transfinite=1) is used.
+            meshless mode (Model.mesh_connectivity=True) is used.
 
         :returns: Tuple containing an array of volumes for each node.
         :rtype: :class:`numpy.ndarray`
         """
-        if transfinite:
+        if self.mesh_connectivity is False:
             if volume_total is None:
-                raise TypeError("In transfinite mode, a total mesh volume "
+                raise TypeError("In meshless mode, a total mesh volume "
                                 "volume_total' must be provided as a keyword"
                                 " argument (expected {}, got {})".format(
                                      float, type(volume_total)))
         volume = np.zeros(self.nnodes)
         dimensions = self.dimensions
 
-        if transfinite:
+        if self.mesh_connectivity is False:
             tmp = volume_total / self.nnodes
             volume = tmp * np.ones(self.nnodes)
         else:
