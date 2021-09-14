@@ -226,8 +226,8 @@ def test_read_meshless_coords(
             volume_total=1.0)
         assert model.coords.shape == (2116, 3)
         assert model.nnodes == 2116
-        assert model.mesh_connectivity == False
-        assert model.mesh_boundary == False
+        assert model.mesh_connectivity is False
+        assert model.mesh_boundary is False
         assert np.allclose(model.coords[69], np.array(
             [0, 0.4888888888888889, 0]))
 
