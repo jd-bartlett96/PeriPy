@@ -92,17 +92,17 @@ def basic_model_3d_cl(data_path, simple_displacement_boundary):
 @pytest.fixture(
     scope="session",
     params=[Euler, pytest.param(EulerCL, marks=context_available)])
-def basic_models_transfinite(data_path, request, simple_displacement_boundary):
-    """Create a basic 2D transfinite model object."""
-    mesh_file = data_path / "example_mesh_transfinite.msh"
+def basic_models_meshless(data_path, request, simple_displacement_boundary):
+    """Create a basic 2D meshless model object."""
+    mesh_file = data_path / "example_mesh_meshless.msh"
     euler = request.param(dt=1e-3)
-    model = Model(mesh_file, integrator=euler, horizon=0.1,
-                  critical_stretch=0.05,
-                  bond_stiffness=18.0 * 0.05 / (np.pi * 0.1**4),
-                  is_displacement_boundary=simple_displacement_boundary,
-                  transfinite=1,
-                  volume_total=1.0)
-    return model
+    with pytest.warns(UserWarning, match='setting Model.mesh_connectivity=False'):
+        model = Model(mesh_file, integrator=euler, horizon=0.1,
+                    critical_stretch=0.05,
+                    bond_stiffness=18.0 * 0.05 / (np.pi * 0.1**4),
+                    is_displacement_boundary=simple_displacement_boundary,
+                    volume_total=1.0)
+        return model
 
 
 class TestDimension:
@@ -192,9 +192,9 @@ class TestRead3D:
         assert np.all(model.mesh_boundary[100] == np.array([172, 185, 124]))
 
 
-def test_read_transfinite(basic_models_transfinite):
-    """Test reading a mesh with a transfinite model."""
-    model = basic_models_transfinite
+def test_read_meshless(basic_models_meshless):
+    """Test reading a mesh with a meshless model."""
+    model = basic_models_meshless
 
     assert model.coords.shape == (2116, 3)
     assert model.nnodes == 2116
@@ -268,22 +268,23 @@ class TestVolume:
         expected_volume = np.load(data_path/"expected_volume_3d.npy")
         assert np.allclose(basic_models_3d.volume, expected_volume)
 
-    def test_volume_transfinite(self, basic_models_transfinite, data_path):
+    def test_volume_meshless(self, basic_models_meshless, data_path):
         """Test volume calculation."""
         expected_volume = np.ones(2116) / 2116.
-        assert np.allclose(basic_models_transfinite.volume, expected_volume)
+        assert np.allclose(basic_models_meshless.volume, expected_volume)
 
     @pytest.mark.parametrize(
         "integrator", [Euler, pytest.param(EulerCL, marks=context_available)])
-    def test_no_volume_total_transfinite(self, data_path, integrator):
-        """Test exceptn when volume_total not provided in transfinite mode."""
-        with pytest.raises(TypeError) as exception:
-            integrator = integrator(1)
-            mesh_file = data_path / "example_mesh_3d.vtk"
-            Model(mesh_file, integrator, horizon=0.1, critical_stretch=0.05,
-                  bond_stiffness=18.0 * 0.05 / (np.pi * 0.0001**4),
-                  dimensions=3, transfinite=1)
-            assert (str("In transfinite mode, a total mesh volume")
+    def test_no_volume_total_meshless(self, data_path, integrator):
+        """Test exception when volume_total not provided in meshless mode."""
+        integrator = integrator(1)
+        mesh_file = data_path / "example_mesh_meshless.msh"
+        with pytest.warns(UserWarning, match='setting Model.mesh_connectivity=False'):
+            with pytest.raises(TypeError) as exception:
+                Model(mesh_file, integrator, horizon=0.1, critical_stretch=0.05,
+                    bond_stiffness=18.0 * 0.05 / (np.pi * 0.0001**4),
+                    dimensions=3)
+                assert (str("meshless mode, a total mesh volume")
                     in exception.value)
 
     @pytest.mark.parametrize(
@@ -292,7 +293,6 @@ class TestVolume:
         """Test reading density from file behaves as expected."""
         mesh_file = data_path / "example_mesh_3d.vtk"
         expected_volume = np.load(data_path/"expected_volume_3d.npy")
-
         with pytest.warns(UserWarning, match='Reading volume from argument'):
             integrator = integrator(1)
             model = Model(mesh_file, integrator=integrator, horizon=0.1,

@@ -499,7 +499,7 @@ class Model(object):
             self.mesh_boundary = False
             warnings.warn(
                 "KeyError: {}, setting Model.mesh_connectivity=False and in "
-                "meshless mocde: output `mesh' will not be connected, but it"
+                "meshless mode: output `mesh' will not be connected, but it"
                 " will be a point cloud.".format(e))
 
     def write_mesh(self, filename, damage=None, displacements=None,
@@ -519,21 +519,7 @@ class Model(object):
         :returns: None
         :rtype: NoneType
         """
-        if self.mesh_connectivity:
-            meshio.write_points_cells(
-                filename,
-                points=self.coords,
-                cells=[
-                    (self.mesh_elements.connectivity, self.mesh_connectivity),
-                    (self.mesh_elements.boundary, self.mesh_boundary)
-                    ],
-                point_data={
-                    "damage": damage,
-                    "displacements": displacements
-                    },
-                file_format=file_format
-                )
-        else:
+        if self.mesh_connectivity is False:
             meshio.write_points_cells(
                 filename,
                 points=self.coords,
@@ -544,7 +530,20 @@ class Model(object):
                     },
                 file_format=file_format
                 )
-
+        else:
+            meshio.write_points_cells(
+            filename,
+            points=self.coords,
+            cells=[
+                (self.mesh_elements.connectivity, self.mesh_connectivity),
+                (self.mesh_elements.boundary, self.mesh_boundary)
+                ],
+            point_data={
+                "damage": damage,
+                "displacements": displacements
+                },
+            file_format=file_format
+            )
 
     def _set_neighbour_list(self, coords, horizon, nnodes,
                             initial_crack=None, context=None):
