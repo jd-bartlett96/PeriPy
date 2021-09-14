@@ -62,7 +62,8 @@ class Model(object):
         size of the critical_stretch and bond_stiffness positional arguments.
 
         :arg str mesh_file: Path of the mesh file defining the systems nodes
-            and connectivity.
+            and connectivity, or :class:`numpy.ndarray` or list of lists
+            containing coordinates of nodes.
         :arg  integrator: The integrator to use, see
             :mod:`peripy.integrators` for options.
         :type integrator: :class:`peripy.integrators.Integrator`
