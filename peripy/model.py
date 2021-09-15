@@ -279,10 +279,10 @@ class Model(object):
             (self.family,
              nlist,
              n_neigh,
-             self.max_neighbours,
-             self.bondlist) = self._set_neighbour_list(
-                 self.coords, self.horizon, self.nnodes,
-                 initial_crack, integrator.context)
+             self.max_neighbours) = self._set_neighbour_list(
+                self.coords, self.horizon, self.nnodes,
+                initial_crack, integrator.context)
+                # ,self.bondlist)
             if self.write_path is not None:
                 write_array(self.write_path, "family", self.family)
                 write_array(self.write_path, "nlist", nlist)
@@ -463,7 +463,7 @@ class Model(object):
                 bnd = [None, None, None]
                 return bnd
 
-        self.bond_length = self._calculate_bond_length()
+        # self.bond_length = self._calculate_bond_length()
 
         # Apply boundary conditions
         (self.bc_types,
@@ -479,8 +479,9 @@ class Model(object):
             self.nnodes, self.degrees_freedom, self.max_neighbours,
             self.coords, self.volume, self.family, self.bc_types,
             self.bc_values, self.force_bc_types, self.force_bc_values,
-            self.stiffness_corrections, self.bond_types, self.densities,
-            self.bondlist, self.bond_length)
+            self.stiffness_corrections, self.bond_types, self.densities)
+            
+            # self.bondlist, self.bond_length)
 
     def _read_mesh(self, filename, transfinite):
         """
@@ -497,7 +498,7 @@ class Model(object):
         self.coords = np.array(mesh.points, dtype=np.float64)
         self.nnodes = self.coords.shape[0]
 
-        transfinite = True  # edit MH
+        # transfinite = True  # edit MH
 
         if not transfinite:
             # Get connectivity, mesh triangle cells
@@ -588,14 +589,14 @@ class Model(object):
         n_neigh = family.copy()
 
         # Build bondlist - edit MH
-        bondlist = np.zeros(((np.sum(family) / 2).astype(int), 2), dtype=np.int)
-        counter = 0
-        for kNode in range(nnodes):
-            for kFamily in range(len(nlist[kNode])):
-                family_member = nlist[kNode, kFamily]
-                if kNode < family_member:
-                    bondlist[counter] = [kNode, family_member]
-                    counter += 1
+        # bondlist = np.zeros(((np.sum(family) / 2).astype(int), 2), dtype=np.int)
+        # counter = 0
+        # for kNode in range(nnodes):
+        #     for kFamily in range(len(nlist[kNode])):
+        #         family_member = nlist[kNode, kFamily]
+        #         if kNode < family_member:
+        #             bondlist[counter] = [kNode, family_member]
+        #             counter += 1
 
         if initial_crack is not None:
             if callable(initial_crack):
@@ -606,7 +607,7 @@ class Model(object):
                 nlist, n_neigh
                 )
 
-        return (family, nlist, n_neigh, max_neighbours, bondlist)
+        return (family, nlist, n_neigh, max_neighbours) # , bondlist)
 
     def _set_volumes(self, transfinite, volume_total):
         """
@@ -1223,18 +1224,18 @@ class Model(object):
         return (bc_types, bc_values, force_bc_types, force_bc_values,
                 tip_types, ntips)
 
-    def _calculate_bond_length(self):
+    # def _calculate_bond_length(self):
 
-        nBonds = len(self.bondlist)
-        bond_length = np.zeros(nBonds, dtype=np.float64)
+    #     nBonds = len(self.bondlist)    
+    #     bond_length = np.zeros(nBonds, dtype=np.float64)
 
-        for kBond, bond in enumerate(self.bondlist):
-            node_i = bond[0]
-            node_j = bond[1]
+    #     for kBond, bond in enumerate(self.bondlist):
+    #         node_i = bond[0]
+    #         node_j = bond[1]
 
-            bond_length[kBond] = np.sum((self.coords[node_j, :] - self.coords[node_i, :]) ** 2)
+    #         bond_length[kBond] = np.sum((self.coords[node_j, :] - self.coords[node_i, :]) ** 2)
 
-        return np.sqrt(bond_length)
+    #     return np.sqrt(bond_length)
 
     def simulate(self, steps, u=None, ud=None, connectivity=None,
                  regimes=None, critical_stretch=None, bond_stiffness=None,
@@ -1337,7 +1338,7 @@ class Model(object):
                      n_neigh) = self.integrator.write(
                          u, ud, udd, body_force, force, damage, nlist, n_neigh)
 
-                    # self.write_mesh(write_path/f"U_{step}.vtk", damage, u)
+                    self.write_mesh(write_path/f"U_{step}.vtk", damage, u)
 
                     # Write index number
                     ii = step // write - (first_step - 1) // write - 1
