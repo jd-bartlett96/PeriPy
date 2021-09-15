@@ -6,7 +6,8 @@ from .peridynamics import damage, bond_force, update_displacement, break_bonds
 import pyopencl as cl
 import pathlib
 import numpy as np
-from .functions.core import calculate_stretch, calculate_bsf_trilinear, calculate_bsf_non_linear, calculate_bond_force,\
+from .functions.core import calculate_stretch, calculate_bsf_trilinear, \
+    calculate_bsf_non_linear, calculate_bond_force,\
     calculate_nodal_force, euler_cromer, calculate_damage
 
 
@@ -496,28 +497,43 @@ class EulerJit(Integrator):
 
         # Calculate bond stretch
         deformed_coordinates = self.coords + self.u
-        deformed_X, deformed_Y, deformed_Z, deformed_length, stretch = self._calculate_stretch(deformed_coordinates)
+        (deformed_X,
+         deformed_Y,
+         deformed_Z,
+         deformed_length,
+         stretch) = self._calculate_stretch(deformed_coordinates)
 
         # Calculate bond softening factor
-        self.bond_softening_factor, self.flag_bsf = self._calculate_bsf_trilinear(stretch, self.s0, self.s1, self.sc)
+        (self.bond_softening_factor,
+         self.flag_bsf) = self._calculate_bsf_trilinear(stretch,
+                                                        self.s0,
+                                                        self.s1, self.sc)
 
         # Calculate bond forces
-        bond_force_X, bond_force_Y, bond_force_Z = self._calculate_bond_forces(self.bond_stiffness, stretch, self.cell_volume,
-                                                                                deformed_X, deformed_Y, deformed_Z,
-                                                                                deformed_length)
+        (bond_force_X,
+         bond_force_Y,
+         bond_force_Z) = self._calculate_bond_forces(self.bond_stiffness,
+                                                     stretch, self.cell_volume,
+                                                     deformed_X, deformed_Y,
+                                                     deformed_Z,
+                                                     deformed_length)
 
         # Calculate nodal forces
-        nodal_forces = self._calculate_nodal_forces(bond_force_X, bond_force_Y, bond_force_Z)
+        nodal_forces = self._calculate_nodal_forces(bond_force_X,
+                                                    bond_force_Y,
+                                                    bond_force_Z)
 
         # Time integration
-        self.u = self._time_integration(nodal_forces, displacement_bc_magnitude)
+        self.u = self._time_integration(nodal_forces,
+                                        displacement_bc_magnitude)
 
         self.force = nodal_forces
         self.body_force = nodal_forces
 
-    def create_buffers(self, nlist, n_neigh, bond_stiffness, critical_stretch, plus_cs,
-                       u, ud, udd, force, body_force, damage, regimes, nregimes,
-                       nbond_types):
+    def create_buffers(
+        self, nlist, n_neigh, bond_stiffness, critical_stretch, plus_cs,
+        u, ud, udd, force, body_force, damage, regimes, nregimes,
+            nbond_types):
         """
         Initiate arrays that are dependent on simulation parameters.
 
@@ -537,9 +553,11 @@ class EulerJit(Integrator):
         self.force = force
         self.body_force = body_force
 
-    def build(self, nnodes, degrees_freedom, max_neighbours, coords, volume,
-              family, bc_types, bc_values, force_bc_types, force_bc_values,
-              stiffness_corrections, bond_types, densities, bondlist, bond_length):
+    def build(
+            self, nnodes, degrees_freedom, max_neighbours, coords, volume,
+            family, bc_types, bc_values, force_bc_types, force_bc_values,
+            stiffness_corrections, bond_types, densities, bondlist,
+            bond_length):
         """
         Initiate integrator arrays.
 
@@ -574,37 +592,70 @@ class EulerJit(Integrator):
         # There are none
 
     def _calculate_stretch(self, deformed_coordinates):
-        deformed_X, deformed_Y, deformed_Z, deformed_length, stretch = calculate_stretch(self.bondlist,
-                                                                                         deformed_coordinates,
-                                                                                         self.bond_length)
+
+        (deformed_X,
+         deformed_Y,
+         deformed_Z,
+         deformed_length, stretch) = calculate_stretch(self.bondlist,
+                                                       deformed_coordinates,
+                                                       self.bond_length)
+
         return deformed_X, deformed_Y, deformed_Z, deformed_length, stretch
 
     def _calculate_bsf_trilinear(self, stretch, s0, s1, sc):
-        self.bond_softening_factor, self.flag_bsf = calculate_bsf_trilinear(stretch, s0, s1, sc, self.bond_softening_factor, self.flag_bsf)
+
+        (self.bond_softening_factor,
+         self.flag_bsf) = calculate_bsf_trilinear(stretch, s0, s1, sc,
+                                                  self.bond_softening_factor,
+                                                  self.flag_bsf)
+
         return self.bond_softening_factor, self.flag_bsf
 
     def _calculate_bsf_non_linear(self, stretch, s0, sc):
-        self.bond_softening_factor, self.flag_bsf = calculate_bsf_non_linear(stretch, s0, sc, self.bond_softening_factor, self.flag_bsf)
+
+        (self.bond_softening_factor,
+         self.flag_bsf) = calculate_bsf_non_linear(stretch, s0, sc,
+                                                   self.bond_softening_factor,
+                                                   self.flag_bsf)
+
         return self.bond_softening_factor, self.flag_bsf
 
     def _calculate_bond_forces(self, bond_stiffness, stretch, cell_volume,
-                                    deformed_X, deformed_Y, deformed_Z, deformed_length):
-        bond_force_X, bond_force_Y, bond_force_Z = calculate_bond_force(bond_stiffness, self.bond_softening_factor,
-                                                                        stretch, cell_volume, deformed_X, deformed_Y,
-                                                                        deformed_Z, deformed_length)
+                               deformed_X, deformed_Y, deformed_Z,
+                               deformed_length):
+
+        (bond_force_X,
+         bond_force_Y,
+         bond_force_Z) = calculate_bond_force(bond_stiffness,
+                                              self.bond_softening_factor,
+                                              stretch, cell_volume, deformed_X,
+                                              deformed_Y, deformed_Z,
+                                              deformed_length)
+
         return bond_force_X, bond_force_Y, bond_force_Z
 
-    def _calculate_nodal_forces(self, bond_force_X, bond_force_Y, bond_force_Z):
-        nodal_forces = calculate_nodal_force(self.nnodes, self.bondlist, bond_force_X, bond_force_Y, bond_force_Z)
+    def _calculate_nodal_forces(self,
+                                bond_force_X, bond_force_Y, bond_force_Z):
+
+        nodal_forces = calculate_nodal_force(self.nnodes, self.bondlist,
+                                             bond_force_X, bond_force_Y,
+                                             bond_force_Z)
+        
         return nodal_forces
 
     def _time_integration(self, nodal_force, bc_scale):
-        u = euler_cromer(nodal_force, self.u, self.nodal_velocity, self.density, self.bc_types,
-                         self.bc_values, bc_scale, self.dt)
+
+        u = euler_cromer(nodal_force, self.u, self.nodal_velocity,
+                         self.density, self.bc_types, self.bc_values,
+                         bc_scale, self.dt)
+
         return u
 
     def _calculate_damage(self):
-        damage = calculate_damage(self.family, self.bondlist, 1 - self.flag_bsf)
+
+        damage = calculate_damage(self.family, self.bondlist,
+                                  1 - self.flag_bsf)
+
         return damage
 
     def _update_displacement(self, u, force, displacement_bc_magnitude):
