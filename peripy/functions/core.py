@@ -20,11 +20,15 @@ def calculate_stretch(bondlist, deformed_coordinates, bond_length):
         node_i = bond[0]
         node_j = bond[1]
 
-        deformed_X[kBond] = deformed_coordinates[node_j, 0] - deformed_coordinates[node_i, 0]
-        deformed_Y[kBond] = deformed_coordinates[node_j, 1] - deformed_coordinates[node_i, 1]
-        deformed_Z[kBond] = deformed_coordinates[node_j, 2] - deformed_coordinates[node_i, 2]
+        deformed_X[kBond] = (deformed_coordinates[node_j, 0]
+                             - deformed_coordinates[node_i, 0])
+        deformed_Y[kBond] = (deformed_coordinates[node_j, 1]
+                             - deformed_coordinates[node_i, 1])
+        deformed_Z[kBond] = (deformed_coordinates[node_j, 2]
+                             - deformed_coordinates[node_i, 2])
 
-    deformed_length = numpy.sqrt(deformed_X ** 2 + deformed_Y ** 2 + deformed_Z ** 2)
+    deformed_length = numpy.sqrt(deformed_X ** 2 +
+                                 deformed_Y ** 2 + deformed_Z ** 2)
     stretch = (deformed_length - bond_length) / bond_length
 
     return deformed_X, deformed_Y, deformed_Z, deformed_length, stretch
@@ -37,7 +41,8 @@ def calculate_stretch(bondlist, deformed_coordinates, bond_length):
 # TODO: this function has not been tested
 
 @njit
-def calculate_bsf_trilinear(stretch, s0, s1, sc, bond_softening_factor, flag_bsf):
+def calculate_bsf_trilinear(stretch, s0, s1, sc, bond_softening_factor,
+                            flag_bsf):
 
     nbonds = len(stretch)
     beta = 0.25
@@ -101,11 +106,17 @@ def calculate_bsf_non_linear(stretch, s0, sc, bond_softening_factor, flag_bsf):
 # --------------------------------------------
 
 @njit(nogil=True, parallel=True)
-def calculate_bond_force(bond_stiffness, bond_softening_factor, stretch, cell_volume,
-                         deformed_X, deformed_Y, deformed_Z, deformed_length):
-    bond_force_X = bond_stiffness * (1 - bond_softening_factor) * stretch * cell_volume * (deformed_X / deformed_length)
-    bond_force_Y = bond_stiffness * (1 - bond_softening_factor) * stretch * cell_volume * (deformed_Y / deformed_length)
-    bond_force_Z = bond_stiffness * (1 - bond_softening_factor) * stretch * cell_volume * (deformed_Z / deformed_length)
+def calculate_bond_force(bond_stiffness, bond_softening_factor, stretch,
+                         cell_volume, deformed_X, deformed_Y, deformed_Z,
+                         deformed_length):
+
+    bond_force_X = (bond_stiffness * (1 - bond_softening_factor) * stretch
+                    * cell_volume * (deformed_X / deformed_length))
+    bond_force_Y = (bond_stiffness * (1 - bond_softening_factor) * stretch
+                    * cell_volume * (deformed_Y / deformed_length))
+    bond_force_Z = (bond_stiffness * (1 - bond_softening_factor) * stretch
+                    * cell_volume * (deformed_Z / deformed_length))
+    
     return bond_force_X, bond_force_Y, bond_force_Z
 
 
@@ -114,7 +125,8 @@ def calculate_bond_force(bond_stiffness, bond_softening_factor, stretch, cell_vo
 # --------------------------------------------
 
 @njit
-def calculate_nodal_force(nnodes, bondlist, bond_force_X, bond_force_Y, bond_force_Z):
+def calculate_nodal_force(nnodes, bondlist, bond_force_X, bond_force_Y,
+                          bond_force_Z):
 
     nodal_force = numpy.zeros((nnodes, 3), dtype=numpy.float64)
 
@@ -141,7 +153,9 @@ def calculate_nodal_force(nnodes, bondlist, bond_force_X, bond_force_Y, bond_for
 # --------------------------------------------
 
 # @njit(nogil=True, parallel=True)
-def euler_cromer(nodal_force, nodal_displacement, nodal_velocity, density, bc_type, bc_values, bc_scale, DT):
+def euler_cromer(nodal_force, nodal_displacement, nodal_velocity, density,
+                 bc_type, bc_values, bc_scale, DT):
+
     damping = 0
     nodal_acceleration = (nodal_force - damping * nodal_velocity) / density
     nodal_acceleration[bc_type == 1] = 0  # Apply boundary conditions - constraints
@@ -149,6 +163,7 @@ def euler_cromer(nodal_force, nodal_displacement, nodal_velocity, density, bc_ty
     nodal_displacement_DT = nodal_velocity_forward * DT
     nodal_displacement_forward = nodal_displacement + nodal_displacement_DT
     nodal_displacement_forward[bc_values != 0] = bc_scale * -1  # TODO: fix this line
+
     return nodal_displacement_forward
 
 

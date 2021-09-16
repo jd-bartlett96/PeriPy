@@ -462,7 +462,7 @@ class Euler(Integrator):
                 self.nlist, self.n_neigh)
 
 
-class EulerJit(Integrator):
+class EulerNumba(Integrator):
     r"""
     Euler integrator written in pure python and optimised using numba (jit 
     compiler).
@@ -470,11 +470,11 @@ class EulerJit(Integrator):
 
     def __init__(self, dt, s0, s1, sc, c, cell_volume):
         """
-        Create an :class:`Euler` integrator object.
+        Create a :class:`EulerNumba` integrator object.
 
         :arg float dt: The length of time (in seconds [s]) of one time-step.
 
-        :returns: An :class:`Euler` object
+        :returns: A :class:`EulerNumba` object
         """
         self.dt = dt
         self.s0 = s0
@@ -483,7 +483,12 @@ class EulerJit(Integrator):
         self.bond_stiffness = c
         self.cell_volume = cell_volume
         self.context = None     # Not an OpenCL integrator
-        # TODO: should the bondlist be built within the class?
+        
+        # TODO: should the bondlist be built within the class? Not possible 
+        # because the integrator has to be defined before the model (input 
+        # file) is built.
+        self.bondlist = self._build_bondlist()
+        self.bond_length = self._calculate_bond_length()
 
     def __call__(self, displacement_bc_magnitude, force_bc_magnitude):
         """
@@ -495,8 +500,10 @@ class EulerJit(Integrator):
             boundary conditions for the current time-step.
         """
 
-        # Calculate bond stretch
+        # Update coordinates
         deformed_coordinates = self.coords + self.u
+
+        # Calculate bond stretch
         (deformed_X,
          deformed_Y,
          deformed_Z,
@@ -530,10 +537,9 @@ class EulerJit(Integrator):
         self.force = nodal_forces
         self.body_force = nodal_forces
 
-    def create_buffers(
-        self, nlist, n_neigh, bond_stiffness, critical_stretch, plus_cs,
-        u, ud, udd, force, body_force, damage, regimes, nregimes,
-            nbond_types):
+    def create_buffers(self, nlist, n_neigh, bond_stiffness, critical_stretch,
+                       plus_cs, u, ud, udd, force, body_force, damage, regimes,
+                       nregimes, nbond_types):
         """
         Initiate arrays that are dependent on simulation parameters.
 
@@ -553,19 +559,18 @@ class EulerJit(Integrator):
         self.force = force
         self.body_force = body_force
 
-    def build(
-            self, nnodes, degrees_freedom, max_neighbours, coords, volume,
-            family, bc_types, bc_values, force_bc_types, force_bc_values,
-            stiffness_corrections, bond_types, densities, bondlist,
-            bond_length):
+    def build(self, nnodes, degrees_freedom, max_neighbours, coords, volume,
+              family, bc_types, bc_values, force_bc_types, force_bc_values,
+              stiffness_corrections, bond_types, densities, bondlist,
+              bond_length):
         """
         Initiate integrator arrays.
 
-        Since :class:`Euler` uses cython in place of OpenCL, there are no
-        OpenCL programs or buffers to be built/created. Instead, this method
-        instantiates the arrays and variables that are independent of
-        :meth:`peripy.model.Model.simulate` parameters as python
-        objects that are used as arguments of the cython functions.
+        Since :class:`EulerJit` uses python and numba in place of OpenCL, there 
+        are no OpenCL programs or buffers to be built/created. Instead, this 
+        method inititates the arrays and variables that are independent of
+        :meth:`peripy.model.Model.simulate` parameters as python objects that 
+        are used as arguments of the python functions.
         """
         self.nnodes = nnodes
         self.coords = coords
@@ -584,11 +589,11 @@ class EulerJit(Integrator):
         self.density = 2400
 
     def _create_special_buffers(self):
-        """Create buffers programs that are special to the Euler integrator."""
+        """Create buffers programs that are special to the integrator."""
         # There are none
 
     def _build_special(self):
-        """Build programs that are special to the Euler integrator."""
+        """Build programs that are special to the integrator."""
         # There are none
 
     def _calculate_stretch(self, deformed_coordinates):
@@ -658,31 +663,45 @@ class EulerJit(Integrator):
 
         return damage
 
-    def _update_displacement(self, u, force, displacement_bc_magnitude):
-        update_displacement(
-            u, self.bc_values, self.bc_types, force, displacement_bc_magnitude,
-            self.dt)
+    def _build_bondlist(self):
+        # Build bondlist - edit MH
 
-    def _break_bonds(self, u, nlist, n_neigh):
-        """Break bonds which have exceeded the critical strain."""
-        break_bonds(self.coords + u, self.coords, nlist, n_neigh,
-                    self.critical_stretch)
+        bondlist = np.zeros(((np.sum(family) / 2).astype(int), 2),
+                            dtype=np.int)
+        counter = 0
 
-    # def _damage(self, n_neigh):
-    #     """Calculate bond damage."""
-    #     return damage(n_neigh, self.family)
+        for kNode in range(nnodes):
+            
+            for kFamily in range(len(nlist[kNode])):
 
-    def _bond_force(self, force_bc_magnitude, u, nlist, n_neigh):
-        """Calculate the force due to bonds acting on each node."""
-        force = bond_force(
-            self.coords + u, self.coords, nlist, n_neigh,
-            self.volume, self.bond_stiffness, self.force_bc_values,
-            self.force_bc_types, force_bc_magnitude)
-        return force
+                family_member = nlist[kNode, kFamily]
+
+                if kNode < family_member:
+
+                    bondlist[counter] = [kNode, family_member]
+                    counter += 1
+
+        return bondlist
+
+    def _calculate_bond_length(self):
+
+        nBonds = len(self.bondlist)
+        bond_length = np.zeros(nBonds, dtype=np.float64)
+
+        for kBond, bond in enumerate(self.bondlist):
+            node_i = bond[0]
+            node_j = bond[1]
+
+            bond_length[kBond] = np.sum((self.coords[node_j, :]
+                                         - self.coords[node_i, :]) ** 2)
+
+        return np.sqrt(bond_length)
 
     def write(self, damage, u, ud, udd, force, body_force, nlist, n_neigh):
         """Return the state variable arrays."""
+
         damage = self._calculate_damage()
+
         return (self.u, self.ud, self.udd, self.force, self.body_force, damage,
                 self.nlist, self.n_neigh)
 

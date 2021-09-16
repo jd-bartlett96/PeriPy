@@ -8,7 +8,7 @@ from io import StringIO
 import numpy as np
 import pathlib
 from peripy import Model
-from peripy.integrators import VelocityVerletCL, EulerJit
+from peripy.integrators import VelocityVerletCL, EulerNumba
 from peripy.utilities import write_array
 from pstats import SortKey, Stats
 from bc_utilities import (is_tip_5mm,
@@ -75,7 +75,7 @@ def main():
     bond_stiffness_nf = [np.float64(c), np.float64(c), np.float64(c)]
     bond_stiffness = [bond_stiffness_, bond_stiffness_nf]
     critical_stretch = [critical_stretch_, critical_stretch_nf]
-    damping = 0  # 2.5e6
+    damping = 2.5e6
     saf_fac = 0.25
     dt = 1.3e-6  # (np.power(2.0 * 2400.0 / ((4 / 3) * np.pi * np.power(horizon, 3.0) * 8 * c), 0.5) * saf_fac)
     steps = 100000  # Number of time steps
@@ -94,7 +94,7 @@ def main():
     # --------------------------------
 
     # integrator = VelocityVerletCL(dt=dt, damping=damping)
-    integrator = EulerJit(dt=dt, s0=s_0, s1=s_1, sc=s_c, c=c, cell_volume=cell_volume)
+    integrator = EulerNumba(dt=dt, s0=s_0, s1=s_1, sc=s_c, c=c, cell_volume=cell_volume)
 
     # --------------------------------
     #          Input file

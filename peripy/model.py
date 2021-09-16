@@ -271,51 +271,65 @@ class Model(object):
         else:
             self.horizon = horizon
 
+        # --------------------------------------------------------------------
+        #                       Build node families
+        # --------------------------------------------------------------------
+
         # Calculate the family (number of bonds in the initial configuration)
         # and connectivity for each node, if None is provided
         if family is None or connectivity is None:
-            # Calculate neighbour list
+
             this_may_take_a_while(self.nnodes, 'family, connectivity')
+            
+            # Calculate neighbour list
             (self.family,
              nlist,
              n_neigh,
              self.max_neighbours) = self._set_neighbour_list(
                 self.coords, self.horizon, self.nnodes,
-                initial_crack, integrator.context)
-                # ,self.bondlist)
+                initial_crack, integrator.context) # , self.bondlist)
+
             if self.write_path is not None:
+                
                 write_array(self.write_path, "family", self.family)
                 write_array(self.write_path, "nlist", nlist)
                 write_array(self.write_path, "n_neigh", n_neigh)
+
         else:
 
             if type(family) == np.ndarray:
+
                 if np.shape(family) != (self.nnodes, ):
+
                     raise ValueError("family shape is wrong, and must be "
                                      "(nnodes, ) (expected {}, got {})".format(
-                                         (self.nnodes, ),
-                                         np.shape(family)))
-                warnings.warn(
-                        "Reading family from argument.")
+                                         (self.nnodes, ), np.shape(family)))
+
+                warnings.warn("Reading family from argument.")
                 self.family = family.astype(np.intc)
+
             elif type(family) != np.ndarray:
+
                 raise TypeError("family type is wrong (expected {}, got "
-                                "{})".format(type(family),
-                                             np.ndarray))
+                                "{})".format(type(family), np.ndarray))
 
             if type(connectivity) == tuple:
+
                 if len(connectivity) != 2:
+
                     raise ValueError("connectivity size is wrong (expected 2,"
                                      " got {})".format(len(connectivity)))
-                warnings.warn(
-                    "Reading connectivity from argument.")
+
+                warnings.warn("Reading connectivity from argument.")
+
                 nlist, n_neigh = connectivity
                 nlist = nlist.astype(np.intc)
                 n_neigh = n_neigh.astype(np.intc)
+
                 if integrator.context is None:
-                    self.max_neighbours = np.intc(
-                                np.shape(nlist)[1]
-                            )
+
+                    self.max_neighbours = np.intc(np.shape(nlist)[1])
+
                     if self.max_neighbours != self.family.max():
                         raise ValueError(
                             "max_neighbours, which is equal to the"
@@ -323,12 +337,14 @@ class Model(object):
                             " max_neighbours = np.shape(nlist)[1] = "
                             "family.max() = {}, got {})".format(
                                 self.family.max(), self.max_neighbours))
+
                 else:
-                    self.max_neighbours = np.intc(
-                        np.shape(nlist)[1]
-                        )
+
+                    self.max_neighbours = np.intc(np.shape(nlist)[1])
                     test = self.max_neighbours - 1
+
                     if self.max_neighbours & test:
+
                         raise ValueError(
                             "max_neighbours, which is equal to the"
                             " size of axis 1 of nlist is wrong (expected "
@@ -336,16 +352,23 @@ class Model(object):
                             " got {})".format(
                                 1 << (int(self.family.max() - 1)).bit_length(),
                                 self.max_neighbours))
+
             else:
+
                 raise TypeError("connectivity type is wrong (expected {} or"
                                 " {}, got {})".format(
                                     tuple, type(None), type(connectivity)))
 
         if np.any(self.family == 0):
+            
             raise FamilyError(self.family)
 
         self.initial_connectivity = (nlist, n_neigh)
         self.degrees_freedom = 3
+
+        # --------------------------------------------------------------------
+        #                  Calculate stiffness corrections
+        # --------------------------------------------------------------------
 
         # Calculate stiffness corrections if None is provided
         if stiffness_corrections is None:
@@ -463,8 +486,6 @@ class Model(object):
                 bnd = [None, None, None]
                 return bnd
 
-        # self.bond_length = self._calculate_bond_length()
-
         # Apply boundary conditions
         (self.bc_types,
          self.bc_values,
@@ -497,7 +518,7 @@ class Model(object):
         self.coords = np.array(mesh.points, dtype=np.float64)
         self.nnodes = self.coords.shape[0]
 
-        # transfinite = True  # edit MH
+        transfinite = True  # edit MH
 
         if not transfinite:
             # Get connectivity, mesh triangle cells
@@ -586,16 +607,6 @@ class Model(object):
 
         nlist = nlist.astype(np.intc)
         n_neigh = family.copy()
-
-        # Build bondlist - edit MH
-        # bondlist = np.zeros(((np.sum(family) / 2).astype(int), 2), dtype=np.int)
-        # counter = 0
-        # for kNode in range(nnodes):
-        #     for kFamily in range(len(nlist[kNode])):
-        #         family_member = nlist[kNode, kFamily]
-        #         if kNode < family_member:
-        #             bondlist[counter] = [kNode, family_member]
-        #             counter += 1
 
         if initial_crack is not None:
             if callable(initial_crack):
@@ -1223,19 +1234,6 @@ class Model(object):
         return (bc_types, bc_values, force_bc_types, force_bc_values,
                 tip_types, ntips)
 
-    # def _calculate_bond_length(self):
-
-    #     nBonds = len(self.bondlist)    
-    #     bond_length = np.zeros(nBonds, dtype=np.float64)
-
-    #     for kBond, bond in enumerate(self.bondlist):
-    #         node_i = bond[0]
-    #         node_j = bond[1]
-
-    #         bond_length[kBond] = np.sum((self.coords[node_j, :] - self.coords[node_i, :]) ** 2)
-
-    #     return np.sqrt(bond_length)
-
     def simulate(self, steps, u=None, ud=None, connectivity=None,
                  regimes=None, critical_stretch=None, bond_stiffness=None,
                  displacement_bc_magnitudes=None, force_bc_magnitudes=None,
@@ -1337,7 +1335,7 @@ class Model(object):
                      n_neigh) = self.integrator.write(
                          u, ud, udd, body_force, force, damage, nlist, n_neigh)
 
-                    self.write_mesh(write_path/f"U_{step}.vtk", damage, u)
+                    # self.write_mesh(write_path/f"U_{step}.vtk", damage, u)
 
                     # Write index number
                     ii = step // write - (first_step - 1) // write - 1
