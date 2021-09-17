@@ -280,17 +280,17 @@ class Model(object):
         if family is None or connectivity is None:
 
             this_may_take_a_while(self.nnodes, 'family, connectivity')
-            
+
             # Calculate neighbour list
             (self.family,
              nlist,
              n_neigh,
              self.max_neighbours) = self._set_neighbour_list(
                 self.coords, self.horizon, self.nnodes,
-                initial_crack, integrator.context) # , self.bondlist)
+                initial_crack, integrator.context)  # , self.bondlist)
 
             if self.write_path is not None:
-                
+
                 write_array(self.write_path, "family", self.family)
                 write_array(self.write_path, "nlist", nlist)
                 write_array(self.write_path, "n_neigh", n_neigh)
@@ -360,11 +360,23 @@ class Model(object):
                                     tuple, type(None), type(connectivity)))
 
         if np.any(self.family == 0):
-            
+
             raise FamilyError(self.family)
 
         self.initial_connectivity = (nlist, n_neigh)
         self.degrees_freedom = 3
+
+
+        # --------------------------------------------------------------------
+        #                       Build bondlist
+        # --------------------------------------------------------------------
+
+        # TODO: should the bondlist be built within the class? Not possible 
+        # because the integrator has to be defined before the model (input 
+        # file) is built.
+
+        self.bondlist = self._build_bondlist(nlist)
+        self.bond_length = self._calculate_bond_length()
 
         # --------------------------------------------------------------------
         #                  Calculate stiffness corrections
@@ -518,7 +530,7 @@ class Model(object):
         self.coords = np.array(mesh.points, dtype=np.float64)
         self.nnodes = self.coords.shape[0]
 
-        transfinite = True  # edit MH
+        # transfinite = True  # edit MH
 
         if not transfinite:
             # Get connectivity, mesh triangle cells
@@ -588,10 +600,13 @@ class Model(object):
         :rtype: tuple(:class:`numpy.ndarray`, :class:`numpy.ndarray`,
                       :class:`numpy.ndarray`, int)
         """
+
         tree = neighbors.KDTree(coords, leaf_size=160)
         neighbour_list = tree.query_radius(coords, r=horizon)
+
         # Remove identity values, as there is no bond between a node and itself
-        neighbour_list = [neighbour_list[i][neighbour_list[i] != i] for i in range(nnodes)]
+        neighbour_list = [neighbour_list[i][neighbour_list[i] != i]
+                          for i in range(nnodes)]
 
         family = [len(neighbour_list[i]) for i in range(nnodes)]
         family = np.array(family, dtype=np.intc)
@@ -602,6 +617,7 @@ class Model(object):
         else:
             max_neighbours = family.max()
             nlist = np.zeros((nnodes, max_neighbours), dtype=np.intc)
+        
         for i in range(nnodes):
             nlist[i][:family[i]] = neighbour_list[i]
 
@@ -610,14 +626,45 @@ class Model(object):
 
         if initial_crack is not None:
             if callable(initial_crack):
-                initial_crack = initial_crack(
-                        coords, nlist, n_neigh)
-            create_crack(
-                np.array(initial_crack, dtype=np.int32),
-                nlist, n_neigh
-                )
+                initial_crack = initial_crack(coords, nlist, n_neigh)
 
-        return (family, nlist, n_neigh, max_neighbours) # , bondlist)
+            create_crack(np.array(initial_crack, dtype=np.int32),
+                         nlist, n_neigh)
+
+        return (family, nlist, n_neigh, max_neighbours)
+
+    def _build_bondlist(self, nlist):
+
+        bondlist = np.zeros(((np.sum(self.family) / 2).astype(int), 2),
+                            dtype=np.int)
+        counter = 0
+
+        for kNode in range(self.nnodes):
+            
+            for kFamily in range(len(nlist[kNode])):
+
+                family_member = nlist[kNode, kFamily]
+
+                if kNode < family_member:
+
+                    bondlist[counter] = [kNode, family_member]
+                    counter += 1
+
+        return bondlist
+
+    def _calculate_bond_length(self):
+
+        nBonds = len(self.bondlist)
+        bond_length = np.zeros(nBonds, dtype=np.float64)
+
+        for kBond, bond in enumerate(self.bondlist):
+            node_i = bond[0]
+            node_j = bond[1]
+
+            bond_length[kBond] = np.sum((self.coords[node_j, :]
+                                         - self.coords[node_i, :]) ** 2)
+
+        return np.sqrt(bond_length)
 
     def _set_volumes(self, transfinite, volume_total):
         """
@@ -1335,7 +1382,7 @@ class Model(object):
                      n_neigh) = self.integrator.write(
                          u, ud, udd, body_force, force, damage, nlist, n_neigh)
 
-                    # self.write_mesh(write_path/f"U_{step}.vtk", damage, u)
+                    self.write_mesh(write_path/f"U_{step}.vtk", damage, u)
 
                     # Write index number
                     ii = step // write - (first_step - 1) // write - 1

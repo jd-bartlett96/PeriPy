@@ -484,12 +484,6 @@ class EulerNumba(Integrator):
         self.cell_volume = cell_volume
         self.context = None     # Not an OpenCL integrator
         
-        # TODO: should the bondlist be built within the class? Not possible 
-        # because the integrator has to be defined before the model (input 
-        # file) is built.
-        self.bondlist = self._build_bondlist()
-        self.bond_length = self._calculate_bond_length()
-
     def __call__(self, displacement_bc_magnitude, force_bc_magnitude):
         """
         Conduct one iteration of the integrator.
@@ -662,40 +656,6 @@ class EulerNumba(Integrator):
                                   1 - self.flag_bsf)
 
         return damage
-
-    def _build_bondlist(self):
-        # Build bondlist - edit MH
-
-        bondlist = np.zeros(((np.sum(family) / 2).astype(int), 2),
-                            dtype=np.int)
-        counter = 0
-
-        for kNode in range(nnodes):
-            
-            for kFamily in range(len(nlist[kNode])):
-
-                family_member = nlist[kNode, kFamily]
-
-                if kNode < family_member:
-
-                    bondlist[counter] = [kNode, family_member]
-                    counter += 1
-
-        return bondlist
-
-    def _calculate_bond_length(self):
-
-        nBonds = len(self.bondlist)
-        bond_length = np.zeros(nBonds, dtype=np.float64)
-
-        for kBond, bond in enumerate(self.bondlist):
-            node_i = bond[0]
-            node_j = bond[1]
-
-            bond_length[kBond] = np.sum((self.coords[node_j, :]
-                                         - self.coords[node_i, :]) ** 2)
-
-        return np.sqrt(bond_length)
 
     def write(self, damage, u, ud, udd, force, body_force, nlist, n_neigh):
         """Return the state variable arrays."""
