@@ -509,7 +509,8 @@ class Model(object):
             self.nnodes, self.degrees_freedom, self.max_neighbours,
             self.coords, self.volume, self.family, self.bc_types,
             self.bc_values, self.force_bc_types, self.force_bc_values,
-            self.stiffness_corrections, self.bond_types, self.densities)
+            self.stiffness_corrections, self.bond_types, self.densities,
+            self.bondlist, self.bond_length)
 
     def _read_mesh(self, filename):
         """
@@ -642,6 +643,39 @@ class Model(object):
                          nlist, n_neigh)
 
         return (family, nlist, n_neigh, max_neighbours)
+
+    def _build_bondlist(self, nlist):
+
+        bondlist = np.zeros(((np.sum(self.family) / 2).astype(int), 2),
+                            dtype=np.int)
+        counter = 0
+
+        for kNode in range(self.nnodes):
+
+            for kFamily in range(len(nlist[kNode])):
+
+                family_member = nlist[kNode, kFamily]
+
+                if kNode < family_member:
+
+                    bondlist[counter] = [kNode, family_member]
+                    counter += 1
+
+        return bondlist
+
+    def _calculate_bond_length(self):
+
+        nBonds = len(self.bondlist)
+        bond_length = np.zeros(nBonds, dtype=np.float64)
+
+        for kBond, bond in enumerate(self.bondlist):
+            node_i = bond[0]
+            node_j = bond[1]
+
+            bond_length[kBond] = np.sum((self.coords[node_j, :]
+                                         - self.coords[node_i, :]) ** 2)
+
+        return np.sqrt(bond_length)
 
     def _set_volumes(self, volume_total):
         """
@@ -1348,7 +1382,7 @@ class Model(object):
                     (u,
                      ud,
                      udd,
-
+                     force,
                      body_force,
                      damage,
                      nlist,
