@@ -58,7 +58,7 @@ def main():
     #           Constants
     # --------------------------------
 
-    nnodes = 3620  # 3645
+    nnodes = 3620  # 3645  
     dx = 5.0e-3
     horizon = dx * np.pi
     s_0 = 1.05e-4

@@ -560,7 +560,7 @@ class EulerNumba(Integrator):
         """
         Initiate integrator arrays.
 
-        Since :class:`EulerJit` uses python and numba in place of OpenCL, there 
+        Since :class:`EulerNumba` uses python and numba in place of OpenCL, there 
         are no OpenCL programs or buffers to be built/created. Instead, this 
         method inititates the arrays and variables that are independent of
         :meth:`peripy.model.Model.simulate` parameters as python objects that 

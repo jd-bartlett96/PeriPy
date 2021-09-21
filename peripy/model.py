@@ -287,7 +287,7 @@ class Model(object):
              n_neigh,
              self.max_neighbours) = self._set_neighbour_list(
                 self.coords, self.horizon, self.nnodes,
-                initial_crack, integrator.context)  # , self.bondlist)
+                initial_crack, integrator.context)
 
             if self.write_path is not None:
 
@@ -373,7 +373,8 @@ class Model(object):
 
         # TODO: should the bondlist be built within the class? Not possible 
         # because the integrator has to be defined before the model (input 
-        # file) is built.
+        # file) is built. Might be possible if we build the bondlist in the 
+        # integrator.build method
 
         self.bondlist = self._build_bondlist(nlist)
         self.bond_length = self._calculate_bond_length()
@@ -1382,7 +1383,7 @@ class Model(object):
                      n_neigh) = self.integrator.write(
                          u, ud, udd, body_force, force, damage, nlist, n_neigh)
 
-                    self.write_mesh(write_path/f"U_{step}.vtk", damage, u)
+                    # self.write_mesh(write_path/f"U_{step}.vtk", damage, u)
 
                     # Write index number
                     ii = step // write - (first_step - 1) // write - 1
