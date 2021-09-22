@@ -529,7 +529,7 @@ class EulerNumba(Integrator):
                                         displacement_bc_magnitude)
 
         self.force = nodal_forces
-        self.body_force = nodal_forces
+        self.body_force = nodal_forces  # TODO: what is this doing?
 
     def create_buffers(self, nlist, n_neigh, bond_stiffness, critical_stretch,
                        plus_cs, u, ud, udd, force, body_force, damage, regimes,

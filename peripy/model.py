@@ -1389,7 +1389,7 @@ class Model(object):
                      n_neigh) = self.integrator.write(
                          u, ud, udd, body_force, force, damage, nlist, n_neigh)
 
-                    self.write_mesh(write_path/f"U_{step}.vtk", damage, u)
+                    # self.write_mesh(write_path/f"U_{step}.vtk", damage, u)
 
                     # Write index number
                     ii = step // write - (first_step - 1) // write - 1

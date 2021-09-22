@@ -344,9 +344,10 @@ def smooth_step_data(start_time_step, final_time_step, start_value, final_value)
     alpha = np.zeros(final_time_step)
 
     for current_time_step in range(start_time_step, final_time_step):
-        xi = (current_time_step - start_time_step) / (final_time_step - start_time_step)
-        alpha[current_time_step] = start_value + (final_value - start_value) * xi**3 \
-                                   * (10 - 15 * xi + 6 * xi**2)
+
+        xi = (current_time_step - start_time_step) / (final_time_step -
+                                                      start_time_step)
+        alpha[current_time_step] = (start_value + (final_value - start_value)
+                                    * xi**3 * (10 - 15 * xi + 6 * xi**2))
 
     return alpha
-
