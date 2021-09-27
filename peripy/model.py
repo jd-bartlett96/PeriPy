@@ -1373,9 +1373,9 @@ class Model(object):
                            desc="Simulation Progress", unit="steps"):
 
             # Call one integration step
-            self.integrator(
-                displacement_bc_magnitudes[step - 1],
-                force_bc_magnitudes[step - 1])
+            self.integrator(step,
+                            displacement_bc_magnitudes[step - 1],
+                            force_bc_magnitudes[step - 1])
 
             if write:
                 if step % write == 0:

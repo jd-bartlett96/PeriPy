@@ -132,7 +132,7 @@ def main():
     first = 0
     last = -1
 
-    force = np.array(data['force']['body_force'][first:last]) / 1000.
+    force = np.array(data['force']['body_force'][first:last]) / 1000
     left_displacement = 1000. * np.array(data['CMOD_left']['displacement'][first:last])
     right_displacement = 1000. * np.array(data['CMOD_right']['displacement'][first:last])
     CMOD = np.subtract(right_displacement, left_displacement)
@@ -177,6 +177,14 @@ def main():
     axes.set_xlim([0, .3])
     # axes.set_ylim([0, 6])
     axes.tick_params(direction='in')
+
+    # Verification data - MH Matlab Code
+    ver_data_path = pathlib.Path(__file__).parent.resolve() / "verification_data.h5"
+    ver_data = h5py.File(ver_data_path, 'r')
+    ver_load_CMOD = ver_data['load_CMOD']
+    ver_load = ver_load_CMOD[0, 0:499] / 1000
+    ver_CMOD = ver_load_CMOD[1, 0:499]
+    plt.plot(ver_CMOD, ver_load, 'tab:orange', label='Verification data')
 
     plt.legend()
     plt.savefig('load_CMOD', dpi=1000)

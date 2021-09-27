@@ -159,7 +159,9 @@ def euler_cromer(nodal_force, nodal_displacement, nodal_velocity, density,
     damping = 0
 
     nodal_acceleration = (nodal_force - damping * nodal_velocity) / density
-    nodal_acceleration[bc_type == 1] = 0            # Apply boundary conditions - constraints
+    index = numpy.where(bc_type[:,1] == 1)
+    nodal_acceleration[index, 2] = 0
+    # nodal_acceleration[bc_type == 1] = 0            # Apply boundary conditions - constraints
     nodal_velocity_forward = nodal_velocity + (nodal_acceleration * DT)
     nodal_displacement_DT = nodal_velocity_forward * DT
     nodal_displacement_forward = nodal_displacement + nodal_displacement_DT
@@ -167,8 +169,7 @@ def euler_cromer(nodal_force, nodal_displacement, nodal_velocity, density,
     nodal_displacement_forward = (nodal_displacement_forward +
                                   (bc_scale * bc_values))
 
-    return nodal_displacement_forward
-
+    return nodal_displacement_forward, nodal_velocity_forward
 
 # --------------------------------------------
 #               Damage

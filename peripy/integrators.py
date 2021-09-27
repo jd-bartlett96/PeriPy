@@ -484,7 +484,7 @@ class EulerNumba(Integrator):
         self.cell_volume = cell_volume
         self.context = None     # Not an OpenCL integrator
         
-    def __call__(self, displacement_bc_magnitude, force_bc_magnitude):
+    def __call__(self, step, displacement_bc_magnitude, force_bc_magnitude):
         """
         Conduct one iteration of the integrator.
 
@@ -510,6 +510,8 @@ class EulerNumba(Integrator):
                                                         self.s0,
                                                         self.s1, self.sc)
 
+        # print(step, np.max(self.bond_softening_factor), np.max(self.flag_bsf))
+
         # Calculate bond forces
         (bond_force_X,
          bond_force_Y,
@@ -525,10 +527,18 @@ class EulerNumba(Integrator):
                                                     bond_force_Z)
 
         # Time integration
-        self.u = self._time_integration(nodal_forces,
+        self.u, self.velocity = self._time_integration(nodal_forces,
                                         displacement_bc_magnitude)
 
-        self.force = nodal_forces
+        # Reaction force
+        # reaction_force = nodal_forces[:, 2] * self.cell_volume
+        # index = np.where(self.bc_values[:, 2] != 0)  # 30 nodes - applied displacements
+        # index2 = np.where(self.bc_types[:, 1] == 1)  # 50 nodes - applied displacements and constraints
+        # reaction_force_appl = np.take(reaction_force, index)
+        # reaction_force_const = np.take(reaction_force, index2)
+        # print(np.sum(reaction_force_appl), np.sum(-reaction_force_const))
+
+        self.force = np.zeros((self.nnodes, 3)) # nodal_forces
         self.body_force = nodal_forces  # TODO: what is this doing?
 
     def create_buffers(self, nlist, n_neigh, bond_stiffness, critical_stretch,
@@ -579,8 +589,8 @@ class EulerNumba(Integrator):
         nbonds = len(bondlist)
         self.bond_softening_factor = np.zeros(nbonds)
         self.flag_bsf = np.zeros(nbonds)
-        self.nodal_velocity = np.zeros((nnodes,3))
-        self.density = 2400
+        self.velocity = np.zeros((nnodes,3))
+        self.density = 2346
 
     def _create_special_buffers(self):
         """Create buffers programs that are special to the integrator."""
@@ -644,11 +654,11 @@ class EulerNumba(Integrator):
 
     def _time_integration(self, nodal_force, bc_scale):
 
-        u = euler_cromer(nodal_force, self.u, self.nodal_velocity,
+        u, v = euler_cromer(nodal_force, self.u, self.velocity,
                          self.density, self.bc_types, self.bc_values,
                          bc_scale, self.dt)
 
-        return u
+        return u, v
 
     def _calculate_damage(self):
 
