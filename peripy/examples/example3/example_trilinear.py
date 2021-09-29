@@ -178,7 +178,7 @@ def main():
     # axes.set_ylim([0, 6])
     axes.tick_params(direction='in')
 
-    # Verification data - MH Matlab Code
+    # Verification data - Matlab Code
     ver_data_path = pathlib.Path(__file__).parent.resolve() / "verification_data.h5"
     ver_data = h5py.File(ver_data_path, 'r')
     ver_load_CMOD = ver_data['load_CMOD']

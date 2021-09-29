@@ -1,5 +1,5 @@
 import numpy
-from numba import njit
+from numba import njit, prange
 
 
 # --------------------------------------------
@@ -8,7 +8,7 @@ from numba import njit
 # TODO: Is math.sqrt faster than numpy.sqrt?
 # TODO: Initialising deformed_X, _Y, _Z every iteration is expensive
 
-@njit
+@njit(parallel=True)
 def calculate_stretch(bondlist, deformed_coordinates, bond_length):
 
     nbonds = len(bondlist)
@@ -16,9 +16,10 @@ def calculate_stretch(bondlist, deformed_coordinates, bond_length):
     deformed_Y = numpy.zeros(nbonds)
     deformed_Z = numpy.zeros(nbonds)
 
-    for kBond, bond in enumerate(bondlist):
-        node_i = bond[0]
-        node_j = bond[1]
+    for kBond in prange(nbonds):
+
+        node_i = bondlist[kBond, 0]
+        node_j = bondlist[kBond, 1]
 
         deformed_X[kBond] = (deformed_coordinates[node_j, 0]
                              - deformed_coordinates[node_i, 0])
@@ -38,9 +39,7 @@ def calculate_stretch(bondlist, deformed_coordinates, bond_length):
 #      Calculate bond softening factor
 # --------------------------------------------
 
-# TODO: this function has not been tested
-
-@njit
+@njit(parallel=True)
 def calculate_bsf_trilinear(stretch, s0, s1, sc, bond_softening_factor,
                             flag_bsf):
 
@@ -49,7 +48,7 @@ def calculate_bsf_trilinear(stretch, s0, s1, sc, bond_softening_factor,
     eta = s1 / s0
     bsf = numpy.zeros(nbonds)
 
-    for kBond in range(nbonds):
+    for kBond in prange(nbonds):
 
         if (stretch[kBond] > s0) and (stretch[kBond] <= s1):
 
@@ -156,10 +155,10 @@ def calculate_nodal_force(nnodes, bondlist, bond_force_X, bond_force_Y,
 def euler_cromer(nodal_force, nodal_displacement, nodal_velocity, density,
                  bc_type, bc_values, bc_scale, DT):
 
-    damping = 0
+    damping = 2.5e6
 
     nodal_acceleration = (nodal_force - damping * nodal_velocity) / density
-    index = numpy.where(bc_type[:,1] == 1)
+    index = numpy.where(bc_type[:,1] == 1)  # TODO: fix this
     nodal_acceleration[index, 2] = 0
     # nodal_acceleration[bc_type == 1] = 0            # Apply boundary conditions - constraints
     nodal_velocity_forward = nodal_velocity + (nodal_acceleration * DT)

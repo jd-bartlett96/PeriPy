@@ -510,8 +510,6 @@ class EulerNumba(Integrator):
                                                         self.s0,
                                                         self.s1, self.sc)
 
-        # print(step, np.max(self.bond_softening_factor), np.max(self.flag_bsf))
-
         # Calculate bond forces
         (bond_force_X,
          bond_force_Y,
@@ -528,17 +526,9 @@ class EulerNumba(Integrator):
 
         # Time integration
         self.u, self.velocity = self._time_integration(nodal_forces,
-                                        displacement_bc_magnitude)
+                                                       displacement_bc_magnitude)
 
-        # Reaction force
-        # reaction_force = nodal_forces[:, 2] * self.cell_volume
-        # index = np.where(self.bc_values[:, 2] != 0)  # 30 nodes - applied displacements
-        # index2 = np.where(self.bc_types[:, 1] == 1)  # 50 nodes - applied displacements and constraints
-        # reaction_force_appl = np.take(reaction_force, index)
-        # reaction_force_const = np.take(reaction_force, index2)
-        # print(np.sum(reaction_force_appl), np.sum(-reaction_force_const))
-
-        self.force = np.zeros((self.nnodes, 3)) # nodal_forces
+        self.force = np.zeros((self.nnodes, 3))  # nodal_forces
         self.body_force = nodal_forces  # TODO: what is this doing?
 
     def create_buffers(self, nlist, n_neigh, bond_stiffness, critical_stretch,
