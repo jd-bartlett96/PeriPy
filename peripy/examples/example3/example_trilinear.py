@@ -34,9 +34,9 @@ def is_density(x):
 # ----------------------------------------------
 #                 WARNING!
 # ----------------------------------------------
-# Stiffness corrections are missing from this
-# example
-
+# Surface corrections factors (to correct the peridynamic surface effect) and 
+# partial volume corrections factors (to improve spatial integration accuracy) 
+# are missing from this example
 
 def main():
     """Conduct a peridynamics simulation."""
@@ -70,7 +70,9 @@ def main():
     c_1 = (beta * c * s_0 - c * s_0) / (s_1 - s_0)
     c_2 = (- beta * c * s_0) / (s_c - s_1)
     critical_stretch_ = [np.float64(s_0), np.float64(s_1), np.float64(s_c)]
-    critical_stretch_nf = [1000. * np.float64(s_0), 1000. * np.float64(s_1), 1000. * np.float64(s_c)]
+    critical_stretch_nf = [1000. * np.float64(s_0),
+                           1000. * np.float64(s_1),
+                           1000. * np.float64(s_c)]
     bond_stiffness_ = [np.float64(c), np.float64(c_1), np.float64(c_2)]
     bond_stiffness_nf = [np.float64(c), np.float64(c), np.float64(c)]
     bond_stiffness = [bond_stiffness_, bond_stiffness_nf]
@@ -81,7 +83,9 @@ def main():
     steps = 100000  # Number of time steps
     applied_displacement = 2e-4 
     volume = np.power(dx, 3) * np.ones(nnodes, dtype=np.float64)
-    print('dt =', "{:.3e}".format(dt), '; safety_fac =', saf_fac, '; damping =', "{:.2e}".format(damping))
+    print('dt =', "{:.3e}".format(dt),
+          '; safety_fac =', saf_fac,
+          '; damping =', "{:.2e}".format(damping))
 
     # --------------------------------
     #       Boundary conditions
@@ -94,7 +98,8 @@ def main():
     # --------------------------------
 
     integrator = VelocityVerletCL(dt=dt, damping=damping)
-    # integrator = EulerNumba(dt=dt, s0=s_0, s1=s_1, sc=s_c, c=c, cell_volume=cell_volume)
+    # integrator = EulerNumba(dt=dt, s0=s_0, s1=s_1, sc=s_c, c=c,
+    #                         cell_volume=cell_volume)
 
     # --------------------------------
     #          Input file
@@ -132,8 +137,10 @@ def main():
     last = -1
 
     force = np.array(data['force']['body_force'][first:last]) / 1000
-    left_displacement = 1000. * np.array(data['CMOD_left']['displacement'][first:last])
-    right_displacement = 1000. * np.array(data['CMOD_right']['displacement'][first:last])
+    left_displacement = 1000. * np.array(data['CMOD_left']['displacement']
+                                         [first:last])
+    right_displacement = 1000. * np.array(data['CMOD_right']['displacement']
+                                          [first:last])
     CMOD = np.subtract(right_displacement, left_displacement)
 
     # Write load-CMOD data to disk
@@ -157,15 +164,18 @@ def main():
     # --------------------------------
 
     # Experimental data
-    exp_data_path = pathlib.Path(__file__).parent.resolve() / "experimental_data.h5"
+    exp_data_path = (pathlib.Path(__file__).parent.resolve()
+                     / "experimental_data.h5")
     exp_data = h5py.File(exp_data_path, 'r')
     exp_load_CMOD = exp_data['load_CMOD']
     exp_CMOD = exp_load_CMOD[0, 0:20000]
     exp_load_mean = exp_load_CMOD[1, 0:20000]
     exp_load_min = exp_load_CMOD[2, 0:20000]
     exp_load_max = exp_load_CMOD[3, 0:20000]
-    plt.plot(exp_CMOD, exp_load_mean, color=(0.8, 0.8, 0.8), label='Experimental')
-    plt.fill_between(exp_CMOD, exp_load_min, exp_load_max, color=(0.8, 0.8, 0.8))
+    plt.plot(exp_CMOD, exp_load_mean, color=(0.8, 0.8, 0.8),
+             label='Experimental')
+    plt.fill_between(exp_CMOD, exp_load_min, exp_load_max,
+                     color=(0.8, 0.8, 0.8))
 
     # Numerical data
     plt.plot(CMOD, -force, label='Numerical')
@@ -174,11 +184,11 @@ def main():
     plt.grid(True)
     axes = plt.gca()
     axes.set_xlim([0, .3])
-    # axes.set_ylim([0, 6])
     axes.tick_params(direction='in')
 
-    # Verification data - Matlab Code
-    ver_data_path = pathlib.Path(__file__).parent.resolve() / "verification_data.h5"
+    # Verification data - https://github.com/mhobbs18/BB_PD 
+    ver_data_path = (pathlib.Path(__file__).parent.resolve()
+                     / "verification_data.h5")
     ver_data = h5py.File(ver_data_path, 'r')
     ver_load_CMOD = ver_data['load_CMOD']
     ver_load = ver_load_CMOD[0, 0:499] / 1000

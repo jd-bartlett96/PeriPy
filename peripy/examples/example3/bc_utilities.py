@@ -339,7 +339,8 @@ def calc_boundary_conditions_magnitudes(
     return (np.array(displacement_bc_array), np.array(force_bc_array))
 
 
-def smooth_step_data(start_time_step, final_time_step, start_value, final_value):
+def smooth_step_data(start_time_step, final_time_step, start_value,
+                     final_value):
 
     alpha = np.zeros(final_time_step)
 
