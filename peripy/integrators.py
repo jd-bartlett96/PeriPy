@@ -484,7 +484,7 @@ class EulerNumba(Integrator):
         self.cell_volume = cell_volume
         self.context = None     # Not an OpenCL integrator
         
-    def __call__(self, step, displacement_bc_magnitude, force_bc_magnitude):
+    def __call__(self, displacement_bc_magnitude, force_bc_magnitude):
         """
         Conduct one iteration of the integrator.
 

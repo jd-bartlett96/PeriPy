@@ -41,14 +41,14 @@ def is_density(x):
 def main():
     """Conduct a peridynamics simulation."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("mesh_file_name", help="run example on a given mesh file name")
+    parser.add_argument("mesh_file_name",
+                        help="run example on a given mesh file name")
     parser.add_argument('--profile', action='store_const', const=True)
     args = parser.parse_args()
 
     mesh_file = pathlib.Path(__file__).parent.resolve() / args.mesh_file_name
-    write_path_solutions = (pathlib.Path(__file__).parent.resolve() / args.mesh_file_name.replace('.msh', ''))
-    write_path_model = (pathlib.Path(__file__).parent.resolve() / str(args.mesh_file_name.replace('.msh', '')
-                                                                      + "_model.h5"))
+    write_path_solutions = (pathlib.Path(__file__).parent.resolve() /
+                            args.mesh_file_name.replace('.msh', ''))
 
     if args.profile:
         profile = cProfile.Profile()
@@ -58,7 +58,7 @@ def main():
     #           Constants
     # --------------------------------
 
-    nnodes = 3620  # 3645  
+    nnodes = 3620  # TODO: this should not be entered manually  
     dx = 5.0e-3
     horizon = dx * np.pi
     s_0 = 1.05e-4
@@ -77,9 +77,9 @@ def main():
     critical_stretch = [critical_stretch_, critical_stretch_nf]
     damping = 2.5e6
     saf_fac = 0.25
-    dt = 1.3e-6  # (np.power(2.0 * 2400.0 / ((4 / 3) * np.pi * np.power(horizon, 3.0) * 8 * c), 0.5) * saf_fac)
+    dt = 1.3e-6  
     steps = 100000  # Number of time steps
-    applied_displacement = 2e-4  # 1.5e-4
+    applied_displacement = 2e-4 
     volume = np.power(dx, 3) * np.ones(nnodes, dtype=np.float64)
     print('dt =', "{:.3e}".format(dt), '; safety_fac =', saf_fac, '; damping =', "{:.2e}".format(damping))
 
@@ -93,8 +93,8 @@ def main():
     #       Solver (integrator)
     # --------------------------------
 
-    # integrator = VelocityVerletCL(dt=dt, damping=damping)
-    integrator = EulerNumba(dt=dt, s0=s_0, s1=s_1, sc=s_c, c=c, cell_volume=cell_volume)
+    integrator = VelocityVerletCL(dt=dt, damping=damping)
+    # integrator = EulerNumba(dt=dt, s0=s_0, s1=s_1, sc=s_c, c=c, cell_volume=cell_volume)
 
     # --------------------------------
     #          Input file
@@ -108,8 +108,7 @@ def main():
         volume=volume,
         is_bond_type=is_bond_type_5mm,
         is_displacement_boundary=is_displacement_boundary_5mm,
-        is_tip=is_tip_5mm,
-        write_path=write_path_model)
+        is_tip=is_tip_5mm)
 
     # --------------------------------
     #          Simulation
