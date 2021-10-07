@@ -45,7 +45,7 @@ Example 3 demonstrates the simulation of a simply supported unnotched plain conc
 
 The numerical load-CMOD curve is outputted and compared against the experimental data. The numerical output is verified using code that has been written independently by Mark Hobbs (https://github.com/mhobbs18/BB_PD).
 
-The results can be improved by using a contact model... The supports introduce additional stiffness into the model.
+Note that the results can be improved by using a contact model. The supports introduce additional stiffness into the model. This effect is not so apparent due to the missing surface correction factors. 
 
 [1] Grégoire, D., Rojas-Solano, L. B., and Pijaudier-Cabot, G. (2013). Failure and size effect for notched and unnotched concrete beams. International Journal for Numerical and Analytical Methods in Geomechanics, 37(10):1434–1452.
 
