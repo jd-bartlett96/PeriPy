@@ -41,7 +41,11 @@ Example 3
 
 Run the third example by typing ``python peripy/examples/example3/example_trilinear.py``
 
-Example 3 demonstrates the simulation of a simply supported unnotched plain concrete beam in three-point bending. The chosen problem was tested experimentally by Grégoire et al. [1]. The problem is simulated using a 3D model and a trilinear constitutive model. The numerical load-CMOD curve is compared against the experimental data...
+Example 3 demonstrates the simulation of a simply supported unnotched plain concrete beam in three-point bending. The chosen problem was tested experimentally by Grégoire et al. [1]. The member has the following dimensions: length l = 175 mm; depth d = 50 mm; and thickness b = 50 mm. The span is 125 mm. The problem is simulated using a 3D model and a trilinear constitutive model. Note that surface correction factors (to correct the peridynamic surface effect) and partial volume correction factors (to improve spatial integration accuracy) are missing from this example.
+
+The numerical load-CMOD curve is outputted and compared against the experimental data. The numerical output is verified using code that has been written independently by Mark Hobbs (https://github.com/mhobbs18/BB_PD).
+
+The results can be improved by using a contact model... The supports introduce additional stiffness into the model.
 
 [1] Grégoire, D., Rojas-Solano, L. B., and Pijaudier-Cabot, G. (2013). Failure and size effect for notched and unnotched concrete beams. International Journal for Numerical and Analytical Methods in Geomechanics, 37(10):1434–1452.
 
