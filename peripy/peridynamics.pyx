@@ -30,14 +30,12 @@ def damage(int[:] n_neigh, int[:] family):
 
     return result
 
-
 def bond_force(double[:, :] r, double[:, :] r0, int[:, :] nlist,
                int[:] n_neigh, double[:] volume, double bond_stiffness,
                double[:, :] force_bc_values, int[:, :] force_bc_types,
                double force_bc_scale):
     """
     Calculate the force due to bonds on each node.
-
     :arg r: The current coordinates of each node.
     :type r: :class:`numpy.ndarray`
     :arg r0: The initial coordinates of each node.
@@ -58,12 +56,12 @@ def bond_force(double[:, :] r, double[:, :] r0, int[:, :] nlist,
     """
     cdef int nnodes = nlist.shape[0]
 
-    force = np.zeros((nnodes, 3), dtype=np.float64)
+    force = np.zeros((nnodes, 1), dtype=np.float64)
     cdef double[:, :] force_view = force
 
     cdef int i, j, dim, i_n_neigh, neigh
     cdef double strain, l, force_norm, nu, partial_volume_i, partial_volume_j
-    cdef double[3] f
+    cdef double[1] f
 
     for i in range(nnodes):
         i_n_neigh = n_neigh[i]
@@ -78,20 +76,20 @@ def bond_force(double[:, :] r, double[:, :] r0, int[:, :] nlist,
 
                 # Calculate component of force in each dimension
                 force_norm = force_norm / l
-                for dim in range(3):
+                for dim in range(1):
                     f[dim] = force_norm * (r[j, dim] - r[i, dim])
 
                 # Add force to particle i, using Newton's third law subtract
                 # force from j
                 # Scale the force by the partial volume of the child particle
-                for dim in range(3):
+                for dim in range(1):
                     force_view[i, dim] = (force_view[i, dim]
                                           + f[dim] * volume[j])
                     force_view[j, dim] = (force_view[j, dim]
                                           - f[dim] * volume[i])
 
         # Apply boundary conditions
-        for dim in range(3):
+        for dim in range(1):
             if force_bc_types[i, dim] != 0:
                 force_view[i, dim] = force_view[i, dim] + (
                     force_bc_scale * force_bc_values[i, dim])
@@ -99,12 +97,11 @@ def bond_force(double[:, :] r, double[:, :] r0, int[:, :] nlist,
     return force
 
 
-def break_bonds(double[:, :] r, double[:, :]r0, int[:, :] nlist,
+def break_bonds(double[:, :] r, double[:, :] r0, int[:, :] nlist,
                 int[:] n_neigh, double critical_strain):
     """
     Update the neighbour list and number of neighbours by breaking bonds which
     have exceeded the critical strain.
-
     :arg r: The current coordinates of each node.
     :type r: :class:`numpy.ndarray`
     :arg r0: The initial coordinates of each node.
@@ -162,7 +159,6 @@ def update_displacement(double[:, :] u, double[:, :] bc_values,
     """
     Update the displacement of each node for each node using an Euler
     integrator.
-
     :arg u: The current displacements of each node.
     :type u: :class:`numpy.ndarray`
     :arg bc_values: An (n,3) array of the boundary condition values.
@@ -176,9 +172,13 @@ def update_displacement(double[:, :] u, double[:, :] bc_values,
         displacement boundary conditions.
     :arg float dt: The length of the timestep in seconds.
     """
+    # TO DO: changed the for loop to stop at 1 not 3.
+    # Must check that this is correct. I.e. is it looping through
+    # Num of dimensions or the num boundary coniditons?
+
     cdef int nnodes = u.shape[0]
     for i in range(nnodes):
-            for dim in range(3):
+            for dim in range(1):
                 if bc_types[i, dim] == 0:
                     u[i, dim] = u[i, dim] + dt * force[i, dim]
                 else:
