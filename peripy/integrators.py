@@ -402,7 +402,7 @@ class Euler(Integrator):
         self.force_bc_values = force_bc_values
         # Make each of the coords into its own list and place within overall 
         # coords list, therefoere makes a 2D list from coords.
-        self.coords_2D = [[coord] for coord in self.coords] 
+        self.coords_2D = np.array([[coord] for coord in self.coords])
         if bond_types is not None:
             raise ValueError("bond_types are not supported by this "
                              "integrator (expected {}, got {}), please use "
@@ -450,7 +450,7 @@ class Euler(Integrator):
     def _bond_force(self, force_bc_magnitude, u, nlist, n_neigh):
         """Calculate the force due to bonds acting on each node."""
         force = bond_force(
-            self.coords+u, self.coords, nlist, n_neigh,
+            self.coords_2D+u, self.coords_2D, nlist, n_neigh,
             self.volume, self.bond_stiffness, self.force_bc_values,
             self.force_bc_types, force_bc_magnitude)
         return force
