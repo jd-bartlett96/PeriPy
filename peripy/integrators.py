@@ -434,6 +434,9 @@ class Euler(Integrator):
         # There are none
 
     def _update_displacement(self, u, force, displacement_bc_magnitude):
+        u = np.array([[element] for element in u])
+        #print(np.shape(self.bc_values), np.shape(self.bc_types), np.shape(force), np.shape(displacement_bc_magnitude))
+        print(np.shape(u))
         update_displacement(
             u, self.bc_values, self.bc_types, force, displacement_bc_magnitude,
             self.dt)
