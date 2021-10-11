@@ -3,8 +3,6 @@ A very simple 1D problem used to test linear implementation of the peripy code.
 
 """
 
-
-
 import argparse
 import cProfile
 from io import StringIO
@@ -15,6 +13,7 @@ from peripy import integrators
 #from peripy.model import initial_crack_helper
 from peripy.integrators import EulerCL, Euler
 from pstats import SortKey, Stats
+from matplotlib import pyplot as plt
 
 
 mesh_def = np.linspace(start=0, stop=1, num=1000)
@@ -87,12 +86,19 @@ def main():
         displacement_bc_magnitudes=displacement_bc_array,
         write=100)
 
+    
+
     if args.profile:
         profile.disable()
         s = StringIO()
         stats = Stats(profile, stream=s).sort_stats(SortKey.CUMULATIVE)
         stats.print_stats(.05)
         print(s.getvalue())
+    
+    plt.scatter(mesh_def, damage)
+    plt.show()
+    #print(max(u))
+    
 
 
 if __name__ == "__main__":
