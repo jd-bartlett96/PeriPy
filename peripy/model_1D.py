@@ -74,7 +74,13 @@ class Model_1D(object):
         single value rather than a list of 3 values?
 
         Dont forget to reinstall peripy every time that the cython code is changed
+
+        What is going on with the mesh.io file? When does it write and read the file?
+        What does it do?
+
         """
+
+
 
         if not isinstance(integrator, Integrator):
             raise InvalidIntegrator(integrator)
@@ -95,12 +101,13 @@ class Model_1D(object):
             self.mesh_elements = _mesh_elements_1d
         else:
             raise DimensionalityError(dimensions)
-        Should be unncessary but could be important later?    
+        #Should be unncessary but could be important later?    
         '''
 
         # Read coordinates and connectivity from mesh file
         # Want to take this out but need to do some prep first
         self._read_mesh(mesh_coords)
+        self.coords_2D = np.array([[coord] for coord in self.coords])
 
         # Calculate the volume for each node, if None is provided
         # How does the volume concept translate to 1D?
@@ -238,6 +245,11 @@ class Model_1D(object):
 
         self.initial_connectivity = (nlist, n_neigh)
         self.degrees_freedom = 3
+
+        if connectivity:
+            self.mesh_connectivity = connectivity
+        else:
+            self.mesh_connectivity = False
 
 
         # Calculate stiffness corrections if None is provided
@@ -412,26 +424,34 @@ class Model_1D(object):
         :returns: None
         :rtype: NoneType
         """
-        meshio.write_points_cells(
-            filename,
-            points=self.coords,
-            #Changes here since no boundary 
-            #or connectivity defined at initalisation of mesh
-            cells=[
-                (self.mesh_elements.connectivity, None),
-                (self.mesh_elements.boundary, None)
-            ],
-            point_data={
-                "damage": damage,
-                "displacements": displacements
-                },
-            file_format=file_format
-            )
+        
 
-        ''' cells=[
-                (self.mesh_elements.connectivity, self.mesh_connectivity),
-                (self.mesh_elements.boundary, self.mesh_boundary)
-                ],'''
+        if self.mesh_connectivity is False:
+            meshio.write_points_cells(
+                filename,
+                points=self.coords_2D,
+                cells=[],
+                point_data={
+                    "damage": damage,
+                    "displacements": displacements
+                    },
+                file_format=file_format
+                )
+        else:
+            meshio.write_points_cells(
+                filename,
+                points=self.coords,
+                cells=[
+                    (self.mesh_elements.connectivity, self.mesh_connectivity),
+                    (self.mesh_elements.boundary, self.mesh_boundary)
+                    ],
+                point_data={
+                    "damage": damage,
+                    "displacements": displacements
+                    },
+                file_format=file_format
+                )
+
 
 
     def _set_neighbour_list(self, coords, horizon, nnodes,

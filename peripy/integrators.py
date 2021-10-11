@@ -379,6 +379,10 @@ class Euler(Integrator):
         self.force = force
         self.body_force = body_force
 
+        #Ensure that u has the right shape.
+        if u.ndim == 1:
+            u = np.array([[element] for element in u])
+
     def build(
             self, nnodes, degrees_freedom, max_neighbours, coords, volume,
             family, bc_types, bc_values, force_bc_types, force_bc_values,
@@ -402,7 +406,8 @@ class Euler(Integrator):
         self.force_bc_values = force_bc_values
         # Make each of the coords into its own list and place within overall 
         # coords list, therefoere makes a 2D list from coords.
-        self.coords_2D = np.array([[coord] for coord in self.coords])
+        if self.coords.ndim == 1:
+            self.coords = np.array([[coord] for coord in self.coords])
         if bond_types is not None:
             raise ValueError("bond_types are not supported by this "
                              "integrator (expected {}, got {}), please use "
@@ -434,16 +439,18 @@ class Euler(Integrator):
         # There are none
 
     def _update_displacement(self, u, force, displacement_bc_magnitude):
-        u = np.array([[element] for element in u])
+        
+        if u.ndim == 1:
+            u = np.array([[element] for element in u])
         #print(np.shape(self.bc_values), np.shape(self.bc_types), np.shape(force), np.shape(displacement_bc_magnitude))
-        print(np.shape(u))
+        #print(np.shape(u))
         update_displacement(
             u, self.bc_values, self.bc_types, force, displacement_bc_magnitude,
             self.dt)
 
     def _break_bonds(self, u, nlist, n_neigh):
         """Break bonds which have exceeded the critical strain."""
-        break_bonds(self.coords_2D+u, self.coords_2D, nlist, n_neigh,
+        break_bonds(self.coords+u, self.coords, nlist, n_neigh,
                     self.critical_stretch)
 
     def _damage(self, n_neigh):
@@ -453,7 +460,7 @@ class Euler(Integrator):
     def _bond_force(self, force_bc_magnitude, u, nlist, n_neigh):
         """Calculate the force due to bonds acting on each node."""
         force = bond_force(
-            self.coords_2D+u, self.coords_2D, nlist, n_neigh,
+            self.coords+u, self.coords, nlist, n_neigh,
             self.volume, self.bond_stiffness, self.force_bc_values,
             self.force_bc_types, force_bc_magnitude)
         return force
