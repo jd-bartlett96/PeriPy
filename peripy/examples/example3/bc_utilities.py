@@ -1,6 +1,7 @@
 """Utilities for example 3."""
 import numpy as np
 
+
 def is_displacement_boundary_5mm(x):
     """
     Return a boolean list of displacement boundarys for each direction.
@@ -53,18 +54,15 @@ def is_tip_5mm(x):
     # Particle does not live on tip
     tip = [None, None, None]
 
-
     if (x[0] > 0.0875 - 5.0e-3) and (x[0] < 0.0875 + 5.0e-3):
         if (x[2] > 0.025 - 5.0e-3) and (x[2] < 0.025 + 5.0e-3):
             tip[2] = 'deflection'
-
 
     if x[0] == 0.025 and x[2] == -0.01:
         tip[2] = 'force'
 
     if x[0] == 0.155 and x[2] == -0.01:
         tip[2] = 'force'
-
 
     if x[0] == 0.125 and x[1] == 0.005 and x[2] == 0.005:
         tip[0] = 'CMOD_right'
@@ -78,9 +76,10 @@ def is_tip_5mm(x):
 def is_bond_type_5mm(x, y):
     """is_bond_type."""
 
-    bnd = 0 # Bond can break
+    bnd = 0  # Bond can break
 
     return bnd
+
 
 def _increment_displacement(coefficients, build_time, step, ease_off,
                             max_displacement_rate, build_displacement,
@@ -168,14 +167,13 @@ def _calc_midpoint_gradient(T, displacement):
         [1 * T**5, 1 * T**4, 1 * T**3],
         [20 * T**3, 12 * T**2, 6 * T],
         [5 * T**4, 4 * T**3, 3 * T**2]
-        ]
-        , dtype=np.float64)
+    ], dtype=np.float64)
     b = np.array(
         [
             [displacement],
             [0.0],
             [0.0]
-                ], dtype=np.float64)
+        ], dtype=np.float64)
     x = np.linalg.solve(A, b)
     a = x[0][0]
     b = x[1][0]

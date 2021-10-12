@@ -34,9 +34,10 @@ def is_density(x):
 # ----------------------------------------------
 #                 WARNING!
 # ----------------------------------------------
-# Surface corrections factors (to correct the peridynamic surface effect) and 
-# partial volume corrections factors (to improve spatial integration accuracy) 
+# Surface corrections factors (to correct the peridynamic surface effect) and
+# partial volume corrections factors (to improve spatial integration accuracy)
 # are missing from this example
+
 
 def main():
     """Conduct a peridynamics simulation."""
@@ -58,7 +59,7 @@ def main():
     #           Constants
     # --------------------------------
 
-    nnodes = 3620  # TODO: this should not be entered manually  
+    nnodes = 3620  # TODO: this should not be entered manually
     dx = 5.0e-3
     horizon = dx * np.pi
     s_0 = 1.05e-4
@@ -79,9 +80,9 @@ def main():
     critical_stretch = [critical_stretch_, critical_stretch_nf]
     damping = 2.5e6
     saf_fac = 0.25
-    dt = 1.3e-6  
+    dt = 1.3e-6
     steps = 100000  # Number of time steps
-    applied_displacement = 2e-4 
+    applied_displacement = 2e-4
     volume = np.power(dx, 3) * np.ones(nnodes, dtype=np.float64)
     print('dt =', "{:.3e}".format(dt),
           '; safety_fac =', saf_fac,
@@ -186,7 +187,7 @@ def main():
     axes.set_xlim([0, .3])
     axes.tick_params(direction='in')
 
-    # Verification data - https://github.com/mhobbs18/BB_PD 
+    # Verification data - https://github.com/mhobbs18/BB_PD
     ver_data_path = (pathlib.Path(__file__).parent.resolve()
                      / "verification_data.h5")
     ver_data = h5py.File(ver_data_path, 'r')
