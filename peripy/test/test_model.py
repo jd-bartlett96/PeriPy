@@ -288,7 +288,7 @@ class TestVolume:
                     bond_stiffness=18.0 * 0.05 / (np.pi * 0.0001**4),
                     dimensions=3)
                 assert (str("meshless mode, a total mesh volume")
-                    in exception.value)
+                        in exception.value)
 
     @pytest.mark.parametrize(
         "integrator", [Euler, pytest.param(EulerCL, marks=context_available)])

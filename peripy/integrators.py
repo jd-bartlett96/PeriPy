@@ -7,6 +7,7 @@ import pyopencl as cl
 import pathlib
 import numpy as np
 
+
 class Integrator(ABC):
     """
     Base class for integrators.

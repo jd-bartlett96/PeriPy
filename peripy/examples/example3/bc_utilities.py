@@ -163,11 +163,12 @@ def _calc_midpoint_gradient(T, displacement):
         coefficients of the 5th-order polynomial.
     :rtype: A tuple containing (:type float:, :type tuple:)
     """
-    A = np.array([
-        [1 * T**5, 1 * T**4, 1 * T**3],
-        [20 * T**3, 12 * T**2, 6 * T],
-        [5 * T**4, 4 * T**3, 3 * T**2]
-    ], dtype=np.float64)
+    A = np.array(
+        [
+            [1 * T**5, 1 * T**4, 1 * T**3],
+            [20 * T**3, 12 * T**2, 6 * T],
+            [5 * T**4, 4 * T**3, 3 * T**2]
+        ], dtype=np.float64)
     b = np.array(
         [
             [displacement],

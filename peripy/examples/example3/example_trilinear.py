@@ -67,7 +67,7 @@ def main():
     s_c = 5.56e-3
     beta = 0.25
     c = 2.32e18
-    cell_volume = dx ** 3
+    # cell_volume = dx ** 3
     c_1 = (beta * c * s_0 - c * s_0) / (s_1 - s_0)
     c_2 = (- beta * c * s_0) / (s_c - s_1)
     critical_stretch_ = [np.float64(s_0), np.float64(s_1), np.float64(s_c)]
