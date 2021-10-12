@@ -442,8 +442,6 @@ class Euler(Integrator):
         
         if u.ndim == 1:
             u = np.array([[element] for element in u])
-        #print(np.shape(self.bc_values), np.shape(self.bc_types), np.shape(force), np.shape(displacement_bc_magnitude))
-        #print(np.shape(u))
         update_displacement(
             u, self.bc_values, self.bc_types, force, displacement_bc_magnitude,
             self.dt)
@@ -470,6 +468,178 @@ class Euler(Integrator):
         damage = self._damage(self.n_neigh)
         return (self.u, self.ud, self.udd, self.force, self.body_force, damage,
                 self.nlist, self.n_neigh)
+
+
+class Implicit(Integrator):
+
+    r"""
+    Euler integrator for cython.
+
+    C implementation of the Euler integrator generated using Cython. Uses CPU
+    only. 
+
+    .. math::
+        F_ext = K_global u
+        u = inv(K_global) F_ext
+
+
+    K must be assembled and a library function is used to solve the equation
+    efficiently
+
+    """
+
+    def __init__(self, dt):
+        """
+        Create an :class:`Euler` integrator object.
+
+        :arg float dt: The length of time (in seconds [s]) of one time-step.
+
+        :returns: An :class:`Euler` object
+        """
+        self.dt = dt
+        # Not an OpenCL integrator
+        self.context = None
+
+    def __call__(self, displacement_bc_magnitude, force_bc_magnitude):
+        
+        """
+        Conduct one iteration of the integrator.
+
+        :arg float displacement_bc_magnitude: the magnitude applied to the
+             displacement boundary conditions for the current time-step.
+        :arg float force_bc_magnitude: the magnitude applied to the force
+            boundary conditions for the current time-step.
+        """
+
+        #Update neighbour list
+        self._break_bonds()
+
+        #Assemble the stiffness matrix for the problem.
+        self.K_matrix = self._assemble_K_matrix()
+
+        #Conduct one integration step
+        #Needs a different function from other integrators here.
+        self._update_displacements()
+
+    
+    def create_buffers(
+            self, nlist, n_neigh, bond_stiffness, critical_stretch, plus_cs,
+            u, ud, udd, force, body_force, damage, regimes, nregimes,
+            nbond_types):
+        """
+        Initiate arrays that are dependent on simulation parameters.
+
+        Initiates arrays that are dependent on
+        :meth:`peripy.model.Model.simulate` parameters. Since
+        :class:`Implicit` uses cython in place of OpenCL, there are no
+        buffers to be created, just python objects that are used as arguments
+        of the cython functions.
+        """
+        if nregimes != 1:
+            raise ValueError("n-linear damage model's are not supported by "
+                             "this integrator. Please supply just one "
+                             "bond_stiffness.")
+        if nbond_types != 1:
+            raise ValueError("n-material composite models are not supported by"
+                             " this integrator. Please supply just one "
+                             "material type and bond_stiffness.")
+        self.nlist = nlist
+        self.n_neigh = n_neigh
+        self.bond_stiffness = bond_stiffness
+        self.critical_stretch = critical_stretch
+        self.u = u
+        self.ud = ud
+        self.udd = udd
+        self.force = force
+        self.body_force = body_force
+
+        #Ensure that u has the right shape.
+        if u.ndim == 1:
+            u = np.array([[element] for element in u])
+    
+
+    def build(
+            self, nnodes, degrees_freedom, max_neighbours, coords, volume,
+            family, bc_types, bc_values, force_bc_types, force_bc_values,
+            stiffness_corrections, bond_types, densities):
+        """
+        Initiate integrator arrays.
+
+        Since :class:`Implicit` uses cython in place of OpenCL, there are no
+        OpenCL programs or buffers to be built/created. Instead, this method
+        instantiates the arrays and variables that are independent of
+        :meth:`peripy.model.Model.simulate` parameters as python
+        objects that are used as arguments of the cython functions.
+        """
+        self.nnodes = nnodes
+        self.coords = coords
+        self.family = family
+        self.volume = volume
+        self.bc_types = bc_types
+        self.bc_values = bc_values
+        self.force_bc_types = force_bc_types
+        self.force_bc_values = force_bc_values
+        # Make each of the coords into its own list and place within overall 
+        # coords list, therefoere makes a 2D list from coords.
+        if self.coords.ndim == 1:
+            self.coords = np.array([[coord] for coord in self.coords])
+        if bond_types is not None:
+            raise ValueError("bond_types are not supported by this "
+                             "integrator (expected {}, got {}), please use "
+                             "EulerCL instead".format(
+                                 type(None),
+                                 type(bond_types)))
+        if stiffness_corrections is not None:
+            raise ValueError("stiffness_corrections are not supported by this "
+                             "integrator (expected {}, got {}), please use "
+                             "EulerCL instead".format(
+                                 type(None),
+                                 type(stiffness_corrections)))
+        if densities is not None:
+            raise ValueError("densities are not supported by this "
+                             "integrator (expected {}, got {}). This "
+                             " integrator neglects inertial effects. Do not "
+                             "supply a density or is_density argument or, "
+                             "alternatively, please use a dynamic integrator, "
+                             "such as EulerCromerCL.".format(
+                                 type(None),
+                                 type(densities)))
+
+
+    def _break_bonds():
+        pass
+
+    def _assemble_K_matrix():
+
+        """
+        Calculates the bond stiffnesses of the neighbour interactions
+        between particles and build this into a global K matrix, containing
+        all the bond stiffnesses between each pair of nodes. Returns the 
+        reduced form of the matrix, using boundary conditions to remove
+        unnecessary rows and columns.        
+        """
+
+        pass
+
+    def _update_displacements():
+        pass
+
+    def _break_bonds(self, u, nlist, n_neigh):
+        """Break bonds which have exceeded the critical strain."""
+        break_bonds(self.coords+u, self.coords, nlist, n_neigh,
+                    self.critical_stretch)
+
+    def _damage(self, n_neigh):
+        """Calculate bond damage."""
+        return damage(n_neigh, self.family)
+    
+    def write(self, damage, u, ud, udd, force, body_force, nlist, n_neigh):
+        """Return the state variable arrays."""
+        damage = self._damage(self.n_neigh)
+        return (self.u, self.ud, self.udd, self.force, self.body_force, damage,
+                self.nlist, self.n_neigh)
+
+    pass
 
 
 class EulerCL(Integrator):

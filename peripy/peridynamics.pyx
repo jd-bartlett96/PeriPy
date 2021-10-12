@@ -183,3 +183,59 @@ def update_displacement(double[:, :] u, double[:, :] bc_values,
                     u[i, dim] = u[i, dim] + dt * force[i, dim]
                 else:
                     u[i, dim] = bc_scale * bc_values[i, dim]
+
+def assemble_K_tangent(double[:, :] r, double[:, :] r0, int[:, :] nlist,
+               int[:] n_neigh, double[:] volume, double bond_stiffness,
+               double[:, :] force_bc_values, int[:, :] force_bc_types,
+               double force_bc_scale):
+
+    """
+    Calculate the bond stiffnesses for each node pairing and
+    assemble into a K matrix.
+    :arg r: The current coordinates of each node.
+    :type r: :class:`numpy.ndarray`
+    :arg r0: The initial coordinates of each node.
+    :type r0: :class:`numpy.ndarray`
+    :arg nlist: The neighbour list
+    :type nlist: :class:`numpy.ndarray`
+    :arg n_neigh: The number of neighbours for each node.
+    :type n_neigh: :class:`numpy.ndarray`
+    :arg volume: The volume of each node.
+    :type volume: :class:`numpy.ndarray`
+    :arg float bond_stiffness: The bond stiffness.
+    :arg force_bc_values: The force boundary condition values for each node.
+    :type force_bc_values: :class:`numpy.ndarray`
+    :arg force_bc_types: The force boundary condition types for each node.
+    :type force_bc_types: :class:`numpy.ndarray`
+    :arg double bc_scale: The scalar value applied to the
+        force boundary conditions.    
+    """
+
+    cdef int nnodes = nlist.shape[0]
+    cdef int i, j, dim, i_n_neigh, neigh
+    cdef double strain, l, nu, partial_volume_i, partial_volume_j
+    cdef double[1] k
+
+    #Loop through each of the nodes and work out their bond stiffnesses
+    #Assemble and reduce to get K_tangent.
+
+    for i in range(nnodes):
+        i_n_neigh = n_neigh[i]  #find number of neighbours for current node
+        for neigh in range(i_n_neigh):  #loop over all neighbours of ith node
+            j = nlist[i, neigh]
+
+            if i < j:   #only need to loop over first half since, others will be covered by N3L.
+                l = ceuclid(r[i], r[j])     #find separation
+                strain = cstrain2(l, r0[i], r0[j])  #find strain
+                multiplier = ((bond_stiffness/(l*l*l)) * (volume[i]*volume[j])) #TO DO: need volume correction factor and softening factor here
+                #Build the local stiffness matrix:
+                K_local = multiplier * [
+                    [l*l, -(l*l)],
+                    [-(l*l), l*l]
+                ]
+
+
+
+
+
+      
