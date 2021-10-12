@@ -75,7 +75,6 @@ def is_tip_5mm(x):
 
 def is_bond_type_5mm(x, y):
     """is_bond_type."""
-
     bnd = 0  # Bond can break
 
     return bnd

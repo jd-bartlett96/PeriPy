@@ -481,6 +481,7 @@ class Model(object):
     def _read_mesh(self, mesh_file):
         """
         Read the model's nodes, connectivity and boundary from a mesh file.
+
         :arg mesh_file: Path of the mesh file to read or
             :class:`numpy.ndarray` or list of lists containing
             coordinates of nodes.
@@ -521,6 +522,7 @@ class Model(object):
                    file_format=None):
         """
         Write the model's nodes, connectivity and boundary to a mesh file.
+
         :arg str filename: Path of the file to write the mesh to.
         :arg damage: The damage of each node. Default is None.
         :type damage: :class:`numpy.ndarray`
@@ -624,6 +626,7 @@ class Model(object):
     def _set_volumes(self, volume_total):
         """
         Calculate the volume (or area) of each node.
+        
         :arg float volume_total: Total volume of the mesh. Must be provided if
             meshless mode (Model.mesh_connectivity=True) is used.
         :returns: Tuple containing an array of volumes for each node.
