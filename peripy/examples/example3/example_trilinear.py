@@ -8,7 +8,7 @@ from io import StringIO
 import numpy as np
 import pathlib
 from peripy import Model
-from peripy.integrators import VelocityVerletCL, EulerNumba
+from peripy.integrators import VelocityVerletCL
 from peripy.utilities import write_array
 from pstats import SortKey, Stats
 from bc_utilities import (is_tip_5mm,

@@ -40,7 +40,7 @@ class Model(object):
     """
 
     def __init__(self, mesh_file, integrator, horizon, critical_stretch,
-                 bond_stiffness,
+                 bond_stiffness, transfinite=0,
                  volume_total=None, write_path=None, connectivity=None,
                  family=None, volume=None, initial_crack=None, dimensions=2,
                  is_density=None, is_bond_type=None,
@@ -79,8 +79,12 @@ class Model(object):
             or a float value of the bond stiffness the Peridynamic bond-based
             prototype microelastic brittle (PMB) model.
         :type bond_stiffness: :class:`numpy.ndarray` or float
+        :arg bool transfinite: Set to 1 for Cartesian cubic (tensor grid) mesh.
+            Set to 0 for a tetrahedral mesh (default). If set to 1, the
+            volumes of the nodes are approximated as the average volume of
+            nodes on a cuboidal tensor-grid mesh.
         :arg float volume_total: Total volume of the mesh. Must be provided if
-            meshless mode (Model.mesh_connectivity=False) is used.
+            transfinite mode (transfinite=1) is used.
         :arg write_path: The path where the model arrays, (volume, family,
             connectivity, stiffness_corrections, bond_types) should be
             written to file to avoid doing time expensive calculations each
@@ -181,7 +185,7 @@ class Model(object):
             University of Nebraska-Lincoln, Department of Mechanical &
             Materials Engineering (September 2010)] is used. Set to None:
             The 'Full Volume algorithm' is used; partial nodal volumes are
-            approximated by their full nodal volumes. Default None.
+            approximated by their full nodal volumes. Defauly None.
         :arg int micromodulus_function: A flag variable denoting the
             normalised micromodulus function. Set to 0: A conical micromodulus
             function is used, which is normalised such that the maximum value
@@ -267,65 +271,50 @@ class Model(object):
         else:
             self.horizon = horizon
 
-        # --------------------------------------------------------------------
-        #                       Build node families
-        # --------------------------------------------------------------------
-
         # Calculate the family (number of bonds in the initial configuration)
         # and connectivity for each node, if None is provided
         if family is None or connectivity is None:
-
-            this_may_take_a_while(self.nnodes, 'family, connectivity')
-
             # Calculate neighbour list
+            this_may_take_a_while(self.nnodes, 'family, connectivity')
             (self.family,
              nlist,
              n_neigh,
              self.max_neighbours) = self._set_neighbour_list(
-                self.coords, self.horizon, self.nnodes,
-                initial_crack, integrator.context)
-
+                 self.coords, self.horizon, self.nnodes,
+                 initial_crack, integrator.context)
             if self.write_path is not None:
-
                 write_array(self.write_path, "family", self.family)
                 write_array(self.write_path, "nlist", nlist)
                 write_array(self.write_path, "n_neigh", n_neigh)
-
         else:
 
             if type(family) == np.ndarray:
-
                 if np.shape(family) != (self.nnodes, ):
-
                     raise ValueError("family shape is wrong, and must be "
                                      "(nnodes, ) (expected {}, got {})".format(
-                                         (self.nnodes, ), np.shape(family)))
-
-                warnings.warn("Reading family from argument.")
+                                         (self.nnodes, ),
+                                         np.shape(family)))
+                warnings.warn(
+                        "Reading family from argument.")
                 self.family = family.astype(np.intc)
-
             elif type(family) != np.ndarray:
-
                 raise TypeError("family type is wrong (expected {}, got "
-                                "{})".format(type(family), np.ndarray))
+                                "{})".format(type(family),
+                                             np.ndarray))
 
             if type(connectivity) == tuple:
-
                 if len(connectivity) != 2:
-
                     raise ValueError("connectivity size is wrong (expected 2,"
                                      " got {})".format(len(connectivity)))
-
-                warnings.warn("Reading connectivity from argument.")
-
+                warnings.warn(
+                    "Reading connectivity from argument.")
                 nlist, n_neigh = connectivity
                 nlist = nlist.astype(np.intc)
                 n_neigh = n_neigh.astype(np.intc)
-
                 if integrator.context is None:
-
-                    self.max_neighbours = np.intc(np.shape(nlist)[1])
-
+                    self.max_neighbours = np.intc(
+                                np.shape(nlist)[1]
+                            )
                     if self.max_neighbours != self.family.max():
                         raise ValueError(
                             "max_neighbours, which is equal to the"
@@ -333,14 +322,12 @@ class Model(object):
                             " max_neighbours = np.shape(nlist)[1] = "
                             "family.max() = {}, got {})".format(
                                 self.family.max(), self.max_neighbours))
-
                 else:
-
-                    self.max_neighbours = np.intc(np.shape(nlist)[1])
+                    self.max_neighbours = np.intc(
+                        np.shape(nlist)[1]
+                        )
                     test = self.max_neighbours - 1
-
                     if self.max_neighbours & test:
-
                         raise ValueError(
                             "max_neighbours, which is equal to the"
                             " size of axis 1 of nlist is wrong (expected "
@@ -348,36 +335,16 @@ class Model(object):
                             " got {})".format(
                                 1 << (int(self.family.max() - 1)).bit_length(),
                                 self.max_neighbours))
-
             else:
-
                 raise TypeError("connectivity type is wrong (expected {} or"
                                 " {}, got {})".format(
                                     tuple, type(None), type(connectivity)))
 
         if np.any(self.family == 0):
-
             raise FamilyError(self.family)
 
         self.initial_connectivity = (nlist, n_neigh)
         self.degrees_freedom = 3
-
-
-        # --------------------------------------------------------------------
-        #                       Build bondlist
-        # --------------------------------------------------------------------
-
-        # TODO: should the bondlist be built within the class? Not possible 
-        # because the integrator has to be defined before the model (input 
-        # file) is built. Might be possible if we build the bondlist in the 
-        # integrator.build method
-
-        self.bondlist = self._build_bondlist(nlist)
-        self.bond_length = self._calculate_bond_length()
-
-        # --------------------------------------------------------------------
-        #                  Calculate stiffness corrections
-        # --------------------------------------------------------------------
 
         # Calculate stiffness corrections if None is provided
         if stiffness_corrections is None:
@@ -510,41 +477,50 @@ class Model(object):
             self.coords, self.volume, self.family, self.bc_types,
             self.bc_values, self.force_bc_types, self.force_bc_values,
             self.stiffness_corrections, self.bond_types, self.densities)
-            # self.bondlist, self.bond_length)
 
-    def _read_mesh(self, filename):
+    def _read_mesh(self, mesh_file):
         """
         Read the model's nodes, connectivity and boundary from a mesh file.
-
-        :arg str filename: Path of the mesh file to read
-
+        :arg mesh_file: Path of the mesh file to read or
+            :class:`numpy.ndarray` or list of lists containing
+            coordinates of nodes.
+        :type mesh_file: str or :class:`numpy.ndarray` or list
         :returns: None
         :rtype: NoneType
         """
-        mesh = meshio.read(filename)
-        # Get coordinates, encoded as mesh points
-        self.coords = np.array(mesh.points, dtype=np.float64)
-        self.nnodes = self.coords.shape[0]
-        try:
-            # Get connectivity, mesh triangle cells
-            self.mesh_connectivity = mesh.cells_dict[
-                self.mesh_elements.connectivity
-                ]
-            # Get boundary connectivity, mesh lines
-            self.mesh_boundary = mesh.cells_dict[self.mesh_elements.boundary]
-        except KeyError as e:
+        if isinstance(mesh_file, np.ndarray) or isinstance(mesh_file, list):
+            self.coords = np.array(mesh_file, dtype=np.float64)
             self.mesh_connectivity = False
             self.mesh_boundary = False
             warnings.warn(
-                "KeyError: {}, setting Model.mesh_connectivity=False and in "
-                "meshless mode: output `mesh' will not be connected, but it"
-                " will be a point cloud.".format(e))
+                    "Mesh not supplied. Setting Model.mesh_connectivity=False "
+                    "and in meshless mode: output `mesh' will not be connected"
+                    ", but it will be a point cloud.")
+        else:
+            mesh = meshio.read(mesh_file)
+            # Get coordinates, encoded as mesh points
+            self.coords = np.array(mesh.points, dtype=np.float64)
+            try:
+                # Get connectivity, mesh triangle cells
+                self.mesh_connectivity = mesh.cells_dict[
+                    self.mesh_elements.connectivity
+                    ]
+                # Get boundary connectivity, mesh lines
+                self.mesh_boundary = mesh.cells_dict[
+                    self.mesh_elements.boundary]
+            except KeyError as e:
+                self.mesh_connectivity = False
+                self.mesh_boundary = False
+                warnings.warn(
+                    "KeyError: {}, setting Model.mesh_connectivity=False and i"
+                    "n meshless mode: output `mesh' will not be connected, but"
+                    " it will be a point cloud.".format(e))
+        self.nnodes = self.coords.shape[0]
 
     def write_mesh(self, filename, damage=None, displacements=None,
                    file_format=None):
         """
         Write the model's nodes, connectivity and boundary to a mesh file.
-
         :arg str filename: Path of the file to write the mesh to.
         :arg damage: The damage of each node. Default is None.
         :type damage: :class:`numpy.ndarray`
@@ -553,7 +529,6 @@ class Model(object):
         :type displacements: :class:`numpy.ndarray`
         :arg str file_format: The file format of the mesh file to
             write. Inferred from `filename` if None. Default is None.
-
         :returns: None
         :rtype: NoneType
         """
@@ -611,79 +586,46 @@ class Model(object):
         :rtype: tuple(:class:`numpy.ndarray`, :class:`numpy.ndarray`,
                       :class:`numpy.ndarray`, int)
         """
-
         tree = neighbors.KDTree(coords, leaf_size=160)
-        neighbour_list = tree.query_radius(coords, r=horizon)
-
+        neighbour_list = tree.query_radius(
+            coords, r=horizon)
         # Remove identity values, as there is no bond between a node and itself
-        neighbour_list = [neighbour_list[i][neighbour_list[i] != i]
-                          for i in range(nnodes)]
+        neighbour_list = [
+            neighbour_list[i][neighbour_list[i] != i]
+            for i in range(nnodes)]
 
         family = [len(neighbour_list[i]) for i in range(nnodes)]
         family = np.array(family, dtype=np.intc)
 
         if context:
-            max_neighbours = np.intc(1 << (int(family.max() - 1)).bit_length())
-            nlist = -1.*np.ones((nnodes, max_neighbours), dtype=np.intc)
+            max_neighbours = np.intc(
+                1 << (int(family.max() - 1)).bit_length())
+            nlist = -1.*np.ones((nnodes, max_neighbours),
+                                dtype=np.intc)
         else:
             max_neighbours = family.max()
             nlist = np.zeros((nnodes, max_neighbours), dtype=np.intc)
-        
         for i in range(nnodes):
             nlist[i][:family[i]] = neighbour_list[i]
-
         nlist = nlist.astype(np.intc)
         n_neigh = family.copy()
 
         if initial_crack is not None:
             if callable(initial_crack):
-                initial_crack = initial_crack(coords, nlist, n_neigh)
-
-            create_crack(np.array(initial_crack, dtype=np.int32),
-                         nlist, n_neigh)
+                initial_crack = initial_crack(
+                        coords, nlist, n_neigh)
+            create_crack(
+                np.array(initial_crack, dtype=np.int32),
+                nlist, n_neigh
+                )
 
         return (family, nlist, n_neigh, max_neighbours)
-
-    def _build_bondlist(self, nlist):
-
-        bondlist = np.zeros(((np.sum(self.family) / 2).astype(int), 2),
-                            dtype=np.int)
-        counter = 0
-
-        for kNode in range(self.nnodes):
-
-            for kFamily in range(len(nlist[kNode])):
-
-                family_member = nlist[kNode, kFamily]
-
-                if kNode < family_member:
-
-                    bondlist[counter] = [kNode, family_member]
-                    counter += 1
-
-        return bondlist
-
-    def _calculate_bond_length(self):
-
-        nBonds = len(self.bondlist)
-        bond_length = np.zeros(nBonds, dtype=np.float64)
-
-        for kBond, bond in enumerate(self.bondlist):
-            node_i = bond[0]
-            node_j = bond[1]
-
-            bond_length[kBond] = np.sum((self.coords[node_j, :]
-                                         - self.coords[node_i, :]) ** 2)
-
-        return np.sqrt(bond_length)
 
     def _set_volumes(self, volume_total):
         """
         Calculate the volume (or area) of each node.
-
         :arg float volume_total: Total volume of the mesh. Must be provided if
             meshless mode (Model.mesh_connectivity=True) is used.
-
         :returns: Tuple containing an array of volumes for each node.
         :rtype: :class:`numpy.ndarray`
         """
@@ -692,7 +634,7 @@ class Model(object):
                 raise TypeError("In meshless mode, a total mesh volume "
                                 "volume_total' must be provided as a keyword"
                                 " argument (expected {}, got {})".format(
-                                     float, type(volume_total)))
+                                    float, type(volume_total)))
         volume = np.zeros(self.nnodes)
         dimensions = self.dimensions
 
@@ -1373,8 +1315,9 @@ class Model(object):
                            desc="Simulation Progress", unit="steps"):
 
             # Call one integration step
-            self.integrator(displacement_bc_magnitudes[step - 1],
-                            force_bc_magnitudes[step - 1])
+            self.integrator(
+                displacement_bc_magnitudes[step - 1],
+                force_bc_magnitudes[step - 1])
 
             if write:
                 if step % write == 0:
@@ -1388,7 +1331,7 @@ class Model(object):
                      n_neigh) = self.integrator.write(
                          u, ud, udd, body_force, force, damage, nlist, n_neigh)
 
-                    # self.write_mesh(write_path/f"U_{step}.vtk", damage, u)
+                    self.write_mesh(write_path/f"U_{step}.vtk", damage, u)
 
                     # Write index number
                     ii = step // write - (first_step - 1) // write - 1
