@@ -199,8 +199,37 @@ def test_read_meshless(basic_models_meshless):
 
     assert model.coords.shape == (2116, 3)
     assert model.nnodes == 2116
+    assert model.mesh_connectivity is False
+    assert model.mesh_boundary is False
     assert np.allclose(model.coords[69], np.array(
         [0, 0.4888888888888889, 0]))
+
+
+@pytest.fixture(
+    scope="session",
+    params=[Euler, pytest.param(EulerCL, marks=context_available)])
+def test_read_meshless_coords(
+        basic_models_meshless, request, simple_displacement_boundary):
+    """Test reading a mesh with only coordinates supplied."""
+    model = basic_models_meshless
+    coords = model.coords
+    euler = request.param(dt=1e-3)
+    with pytest.warns(
+            UserWarning, match='Mesh not supplied.'
+            ' Setting Model.mesh_connectiviy=False'):
+        # Create new meshless model with only coordinates
+        model = Model(
+            coords, integrator=euler, horizon=0.1,
+            critical_stretch=0.05,
+            bond_stiffness=18.0 * 0.05 / (np.pi * 0.1**4),
+            is_displacement_boundary=simple_displacement_boundary,
+            volume_total=1.0)
+        assert model.coords.shape == (2116, 3)
+        assert model.nnodes == 2116
+        assert model.mesh_connectivity is False
+        assert model.mesh_boundary is False
+        assert np.allclose(model.coords[69], np.array(
+            [0, 0.4888888888888889, 0]))
 
 
 @pytest.fixture(scope="class")
