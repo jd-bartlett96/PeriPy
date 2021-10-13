@@ -626,7 +626,7 @@ class Model(object):
     def _set_volumes(self, volume_total):
         """
         Calculate the volume (or area) of each node.
-        
+
         :arg float volume_total: Total volume of the mesh. Must be provided if
             meshless mode (Model.mesh_connectivity=True) is used.
         :returns: Tuple containing an array of volumes for each node.
