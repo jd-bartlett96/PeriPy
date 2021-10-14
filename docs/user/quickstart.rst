@@ -27,29 +27,49 @@ Example 2
 Run the second example by typing ``python peripy/examples/example2/example.py``
 
 Example 2 is a simple, 3D peridynamics simulation example.
-This example is a 1.65m x 0.25m x 0.6m plain concrete canteliver beam with no
-pre-crack subjected to force controlled loading on the  right-hand side of the
+This example is a 1.65m x 0.25m x 0.6m plain concrete, canteliver beam, with no
+pre-crack, subjected to force controlled loading on the  right-hand side of the
 beam which linearly increases up to 45kN.
 In this example, the first time the volume, family and connectivity of the
 model are calculated, they are also stored in file '1650beam13539_model.h5'.
 In subsequent simulations, the arrays are loaded from this h5 file instead of
 being calculated again, therefore reducing the overhead of initiating the
-model. The ``--profile`` argument generates profiling information for the example
+model. The ``--profile`` argument generates profiling information for the
+example.
 
 Example 3
 ^^^^^^^^^
 
-Run the third example by typing ``python peripy/examples/example3/example_trilinear.py``
+Run the third example by typing ``python peripy/examples/example3/example.py``
 
-Example 3 demonstrates the simulation of a simply supported unnotched plain concrete beam in three-point bending. The chosen problem was tested experimentally by Grégoire et al. [1]. The member has the following dimensions: length l = 175 mm; depth d = 50 mm; and thickness b = 50 mm. The span is 125 mm. The problem is simulated using a 3D model and a trilinear constitutive model. Note that surface correction factors (to correct the peridynamic surface effect) and partial volume correction factors (to improve spatial integration accuracy) are missing from this example.
+Example 3 is a simple, 3D peridynamics simulation example which is compared
+to real life experimental data from Grégoire et al. [1], and also verified
+against Mark Hobbs peridynamics code's [2] simulation data, which was developed
+independently from PeriPy.
 
-The numerical load-CMOD curve is outputted and compared against the experimental data. The numerical output is verified using code that has been written independently by Mark Hobbs (https://github.com/mhobbs18/BB_PD).
+This example is a 0.175m x 0.05m x 0.05m plain concrete, simply supported
+beam with no pre-crack, subjected to displacement controlled three-point
+bending. The displacement loading follows a 5th order polynomial so that
+acceleration of the boundaries is zero at the start and end of the simulation.
+The span between the supports is 0.125m. The model uses a ``trilinear"
+constitutive model. No surface correction factors or partial volume correction
+factors are applied to the model.
 
-Note that the results can be improved by using a contact model. The supports introduce additional stiffness into the model. This effect is not so apparent due to the missing surface correction factors. 
+In this example, the first time the volume, family and connectivity of the
+model are calculated, they are also stored in file `175beam3620.h5'.
+In subsequent simulations, the arrays are loaded from this h5 file instead of
+being calculated again, therefore reducing the overhead of initiating the
+model.
 
-[1] Grégoire, D., Rojas-Solano, L. B., and Pijaudier-Cabot, G. (2013). Failure and size effect for notched and unnotched concrete beams. International Journal for Numerical and Analytical Methods in Geomechanics, 37(10):1434–1452.
+The output is a load-CMOD curve which is compared to the experimental data [1]
+and to the verification data [2].
 
+[1] Grégoire, D., Rojas-Solano, L. B., and Pijaudier-Cabot, G. (2013).
+Failure and size effect for notched and unnotched concrete beams.
+International Journal for Numerical and Analytical Methods in Geomechanics,
+37(10):1434–1452.
 
+[2] Mark Hobbs (2019), BB_PD, https://github.com/mhobbs18/BB_PD
 
 The Model class
 ---------------

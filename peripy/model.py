@@ -1241,8 +1241,8 @@ class Model(object):
     def simulate(self, steps, u=None, ud=None, connectivity=None,
                  regimes=None, critical_stretch=None, bond_stiffness=None,
                  displacement_bc_magnitudes=None, force_bc_magnitudes=None,
-                 first_step=1, write=None,
-                 write_path=None):
+                 first_step=1, write_path_mesh=None, write_path_data=None,
+                 write_mesh=None, write_data=None):
         """
         Simulate the peridynamics model.
 
@@ -1313,11 +1313,12 @@ class Model(object):
          force_bc_magnitudes,
          damage,
          data,
-         nwrites,
-         write_path) = self._simulate_initialise(
-             steps, first_step, write, regimes, u, ud,
+         write_path_mesh,
+         write_path_data) = self._simulate_initialise(
+             steps, first_step, write_data, regimes, u, ud,
              displacement_bc_magnitudes, force_bc_magnitudes, connectivity,
-             bond_stiffness, critical_stretch, write_path)
+             bond_stiffness, critical_stretch, write_path_mesh,
+             write_path_data)
 
         for step in trange(first_step, first_step+steps,
                            desc="Simulation Progress", unit="steps"):
@@ -1327,38 +1328,29 @@ class Model(object):
                 displacement_bc_magnitudes[step - 1],
                 force_bc_magnitudes[step - 1])
 
-            if write:
-                if step % write == 0:
-                    (u,
-                     ud,
-                     udd,
-                     force,
-                     body_force,
-                     damage,
-                     nlist,
-                     n_neigh) = self.integrator.write(
-                         u, ud, udd, body_force, force, damage, nlist, n_neigh)
-
-                    self.write_mesh(write_path/f"U_{step}.vtk", damage, u)
-
+            if (write_mesh and step % write_mesh == 0) or (
+                write_data and step & write_data == 0):
+                (u,
+                ud,
+                udd,
+                force,
+                body_force,
+                damage,
+                nlist,
+                n_neigh) = self.integrator.write(
+                    u, ud, udd, body_force, force, damage, nlist, n_neigh)
+            if write_mesh:
+                if step % write_mesh == 0:
+                    self.write_mesh(
+                        write_path_mesh/f"U_{step}.vtk", damage, u)
+            if write_data:
+                if step % write_data == 0:
                     # Write index number
-                    ii = step // write - (first_step - 1) // write - 1
+                    ii = (
+                        step // write_data
+                        - (first_step - 1) // write_data - 1)
 
                     for tip_type, node_list in self.tip_types.items():
-                        if tip_type not in data:
-                            # Build data dict for this tip type
-                            data[tip_type] = {
-                                'displacement': np.zeros(
-                                    nwrites, dtype=np.float64),
-                                'velocity': np.zeros(
-                                    nwrites, dtype=np.float64),
-                                'acceleration': np.zeros(
-                                    nwrites, dtype=np.float64),
-                                'force': np.zeros(
-                                    nwrites, dtype=np.float64),
-                                'body_force': np.zeros(
-                                    nwrites, dtype=np.float64)
-                                }
                         for node in node_list:
                             i, j = node
                             # Add to tip data for the write index, ii
@@ -1382,7 +1374,6 @@ class Model(object):
                         force * self.volume[:, np.newaxis])
                     data['model']['body_force'][ii] = np.sum(
                         body_force * self.volume[:, np.newaxis])
-
                     damage_sum = np.sum(damage)
                     data['model']['damage_sum'][ii] = damage_sum
                     if damage_sum > 0.05*self.nnodes:
@@ -1391,14 +1382,15 @@ class Model(object):
                     elif damage_sum > 0.7*self.nnodes:
                         warnings.warn('Over 7% of bonds have broken!\
                                       peridynamics simulation continuing')
-        for tip_type_str in data:
-            # Average the nodal displacements, velocities and
-            # accelerations
-            ntip = self.ntips[tip_type_str]
-            if ntip != 0:
-                data[tip_type_str]['displacement'] /= ntip
-                data[tip_type_str]['velocity'] /= ntip
-                data[tip_type_str]['acceleration'] /= ntip
+        if write_data:
+            for tip_type_str in data:
+                # Average the nodal displacements, velocities and
+                # accelerations
+                ntip = self.ntips[tip_type_str]
+                if ntip != 0:
+                    data[tip_type_str]['displacement'] /= ntip
+                    data[tip_type_str]['velocity'] /= ntip
+                    data[tip_type_str]['acceleration'] /= ntip
         (u,
          ud,
          udd,
@@ -1412,18 +1404,19 @@ class Model(object):
         return (u, damage, (nlist, n_neigh), force, ud, data)
 
     def _simulate_initialise(
-            self, steps, first_step, write, regimes, u, ud,
+            self, steps, first_step, write_data, regimes, u, ud,
             displacement_bc_magnitudes, force_bc_magnitudes, connectivity,
-            bond_stiffness, critical_stretch, write_path):
+            bond_stiffness, critical_stretch, write_path_mesh,
+            write_path_data):
         """
         Initialise simulation variables.
 
         :arg int steps: The number of simulation steps to conduct.
         :arg int first_step: The starting step number. This is useful when
             restarting a simulation.
-        :arg int write: The frequency, in number of steps, to write the system
-            to a mesh file by calling :meth:`Model.write_mesh`. If None then
-            no output is written. Default None.
+        :arg int write_data: The frequency, in number of steps, to write the
+            system to a data file by calling :meth:`Integrator.write`. If None
+            then no output is written. Default None.
         :arg regimes: The initial regimes for the simulation. A
             (`nodes`, `max_neighbours`) array of type
             :class:`numpy.ndarray` of the regimes of the bonds.
@@ -1569,28 +1562,49 @@ class Model(object):
                         self.nbond_types, nbond_types))
 
         # If no write path was provided use the current directory, otherwise
-        # ensure write_path is a Path object.
-        if write_path is None:
-            write_path = pathlib.Path()
+        # ensure write_path_mesh and write_path is a Path object.
+        if write_path_mesh is None:
+            write_path_mesh = pathlib.Path()
         else:
-            write_path = pathlib.Path(write_path)
+            write_path_mesh = pathlib.Path(write_path_mesh)
+        # If no write path was provided use the current directory, otherwise
+        # ensure write_path is a Path object.
+        if write_path_data is None:
+            write_path_data = pathlib.Path()
+        else:
+            write_path_data = pathlib.Path(write_path_data)
 
-        # Container for plotting data
+        # Dictionary for plotting data
         data = {}
         nwrites = None
-        if write:
+        if write_data:
             nwrites = (
-                (first_step + steps - 1) // write - (first_step - 1) // write)
-            if write is not None:
-                data['model'] = {
-                    'step': np.zeros(nwrites, dtype=int),
-                    'displacement': np.zeros(nwrites, dtype=np.float64),
-                    'velocity': np.zeros(nwrites, dtype=np.float64),
-                    'acceleration': np.zeros(nwrites, dtype=np.float64),
-                    'force': np.zeros(nwrites, dtype=np.float64),
-                    'body_force': np.zeros(nwrites, dtype=np.float64),
-                    'damage_sum': np.zeros(nwrites, dtype=np.float64)
-                    }
+                (first_step + steps - 1) // write_data
+                - (first_step - 1) // write_data)
+            data['model'] = {
+                'step': np.zeros(nwrites, dtype=int),
+                'displacement': np.zeros(nwrites, dtype=np.float64),
+                'velocity': np.zeros(nwrites, dtype=np.float64),
+                'acceleration': np.zeros(nwrites, dtype=np.float64),
+                'force': np.zeros(nwrites, dtype=np.float64),
+                'body_force': np.zeros(nwrites, dtype=np.float64),
+                'damage_sum': np.zeros(nwrites, dtype=np.float64)
+                }
+            for tip_type, _ in self.tip_types.items(): 
+                if tip_type not in data:
+                    # Build data dict for this tip type
+                    data[tip_type] = {
+                        'displacement': np.zeros(
+                            nwrites, dtype=np.float64),
+                        'velocity': np.zeros(
+                            nwrites, dtype=np.float64),
+                        'acceleration': np.zeros(
+                            nwrites, dtype=np.float64),
+                        'force': np.zeros(
+                            nwrites, dtype=np.float64),
+                        'body_force': np.zeros(
+                            nwrites, dtype=np.float64)
+                        }
 
         # Initialise the OpenCL buffers
         self.integrator.create_buffers(
@@ -1599,7 +1613,7 @@ class Model(object):
 
         return (u, ud, udd, force, body_force, nlist, n_neigh,
                 displacement_bc_magnitudes, force_bc_magnitudes, damage, data,
-                nwrites, write_path)
+                write_path_mesh, write_path_data)
 
 
 def initial_crack_helper(crack_function):

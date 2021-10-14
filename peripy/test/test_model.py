@@ -1708,8 +1708,10 @@ class TestSimulate:
         u, damage, connectivity, *_ = model.simulate(
             steps=1,
             displacement_bc_magnitudes=np.array([0]),
-            write=1,
-            write_path=tmp_path
+            write_path_mesh=tmp_path,
+            write_path_data=tmp_path,
+            write_mesh=1,
+            write_data=1
             )
 
         mesh = tmp_path / "U_1.vtk"
@@ -1727,11 +1729,12 @@ class TestSimulateInitialise:
         """Ensure data dict contains the correct sized containers."""
         model = cython_model
         steps = 20
-        write = 10
+        write_data = 10
+
         (_, _, _, _, _, _, _, _, _, _,
-         actual_data, actual_nwrites, *_) = model._simulate_initialise(
-            steps, 1, write, None, None, None,
-            None, None, None, None, None, None)
+         actual_data, *_) = model._simulate_initialise(
+            steps, 1, write_data, None, None, None,
+            None, None, None, None, None, None, None)
         expected_data_model = {'step': np.zeros(2, dtype=int),
                                'displacement': np.zeros(2, dtype=np.float64),
                                'velocity': np.zeros(2, dtype=np.float64),
@@ -1745,18 +1748,17 @@ class TestSimulateInitialise:
         assert all(
             np.array_equal(actual_data_model[key], expected_data_model[key])
             for key in actual_data_model)
-        assert actual_nwrites == 2
 
     def test_data_first_step(self, cython_model):
         """Ensure data dict contains the correct sized containers."""
         model = cython_model
         steps = 5
         first_step = 6
-        write = 10
+        write_data = 10
         (_, _, _, _, _, _, _, _, _, _,
-         actual_data, actual_nwrites, *_) = model._simulate_initialise(
-            steps, first_step, write, None, None, None,
-            None, None, None, None, None, None)
+         actual_data, *_) = model._simulate_initialise(
+            steps, first_step, write_data, None, None, None,
+            None, None, None, None, None, None, None)
         expected_data_model = {'step': np.zeros(1, dtype=int),
                                'displacement': np.zeros(1, dtype=np.float64),
                                'velocity': np.zeros(1, dtype=np.float64),
@@ -1770,7 +1772,6 @@ class TestSimulateInitialise:
         assert all(
             np.array_equal(actual_data_model[key], expected_data_model[key])
             for key in actual_data_model)
-        assert actual_nwrites == 1
 
     def test_none_initalise(self, cython_model):
         """Ensure simulate values are initialised correctly given None."""
@@ -1779,9 +1780,9 @@ class TestSimulateInitialise:
         steps = 10
         (u, ud, udd, force, body_force, nlist, n_neigh,
          displacement_bc_magnitudes, force_bc_magnitudes, damage, data,
-         nwrites, write_path) = model._simulate_initialise(
+         *_) = model._simulate_initialise(
             steps, 1, None, None, None, None,
-            None, None, None, None, None, None)
+            None, None, None, None, None, None, None)
         nnodes_dof_zeros = np.zeros((model.nnodes, 3), dtype=np.float64)
         nnodes_zeros = np.zeros((model.nnodes), dtype=np.float64)
         steps_zeros = np.zeros(steps, dtype=np.float64)
@@ -1796,109 +1797,108 @@ class TestSimulateInitialise:
         assert np.all(force_bc_magnitudes == steps_zeros)
         assert np.all(damage == nnodes_zeros)
         assert data == {}
-        assert nwrites is None
 
     def test_displacement_bc_magnitudes_length(self, cython_model):
         """Test exception when displacement_bc_magnitudes length is wrong."""
         model = cython_model
-        nlist_expected, n_neigh_expected = model.initial_connectivity
+        # nlist_expected, n_neigh_expected = model.initial_connectivity
         steps = 10
         displacement_bc_magnitudes = np.zeros(9)
         with pytest.raises(ValueError) as exception:
             model._simulate_initialise(
                 steps, 1, None, None, None, None,
-                displacement_bc_magnitudes, None, None, None, None, None)
+                displacement_bc_magnitudes, None, None, None, None, None, None)
             assert (
                 str("displacement_bc_magnitudes length") in exception.value)
 
     def test_displacement_bc_magnitudes_type(self, cython_model):
         """Test exception when displacement_bc_magnitudes type is wrong."""
         model = cython_model
-        nlist_expected, n_neigh_expected = model.initial_connectivity
+        # nlist_expected, n_neigh_expected = model.initial_connectivity
         steps = 10
         displacement_bc_magnitudes = 1.0
         with pytest.raises(TypeError) as exception:
             model._simulate_initialise(
                 steps, 1, None, None, None, None,
-                displacement_bc_magnitudes, None, None, None, None, None)
+                displacement_bc_magnitudes, None, None, None, None, None, None)
             assert (
                 str("displacement_bc_magnitudes type") in exception.value)
 
     def test_force_bc_magnitudes_length(self, cython_model):
         """Test exception when force_bc_magnitudes length is wrong."""
         model = cython_model
-        nlist_expected, n_neigh_expected = model.initial_connectivity
+        # nlist_expected, n_neigh_expected = model.initial_connectivity
         steps = 10
         force_bc_magnitudes = np.zeros(9)
         with pytest.raises(ValueError) as exception:
             model._simulate_initialise(
                 steps, 1, None, None, None, None,
-                None, force_bc_magnitudes, None, None, None, None)
+                None, force_bc_magnitudes, None, None, None, None, None)
             assert (
                 str("force_bc_magnitudes length") in exception.value)
 
     def test_force_bc_magnitudes_type(self, cython_model):
         """Test exception when force_bc_magnitudes type is wrong."""
         model = cython_model
-        nlist_expected, n_neigh_expected = model.initial_connectivity
+        # nlist_expected, n_neigh_expected = model.initial_connectivity
         steps = 10
         force_bc_magnitudes = 1.0
         with pytest.raises(TypeError) as exception:
             model._simulate_initialise(
                 steps, 1, None, None, None, None,
-                None, force_bc_magnitudes, None, None, None, None)
+                None, force_bc_magnitudes, None, None, None, None, None)
             assert (
                 str("force_bc_magnitudes type") in exception.value)
 
     def test_connectivity_size(self, cython_model):
         """Test exception when connectivity size is wrong."""
         model = cython_model
-        nlist_expected, n_neigh_expected = model.initial_connectivity
+        # nlist_expected, n_neigh_expected = model.initial_connectivity
         steps = 10
         connectivity = (1, 2, 3)
         with pytest.raises(ValueError) as exception:
             model._simulate_initialise(
                 steps, 1, None, None, None, None,
-                None, None, connectivity, None, None, None)
+                None, None, connectivity, None, None, None, None)
             assert (
                 str("connectivity size is wrong") in exception.value)
 
     def test_connectivity_type(self, cython_model):
         """Test exception when connectivity type is wrong."""
         model = cython_model
-        nlist_expected, n_neigh_expected = model.initial_connectivity
+        # nlist_expected, n_neigh_expected = model.initial_connectivity
         steps = 10
         connectivity = 1
         with pytest.raises(TypeError) as exception:
             model._simulate_initialise(
                 steps, 1, None, None, None, None,
-                None, None, connectivity, None, None, None)
+                None, None, connectivity, None, None, None, None)
             assert (
                 str("connectivity type") in exception.value)
 
     def test_regimes_size(self, cython_model):
         """Test exception when regimes shape is wrong."""
         model = cython_model
-        nlist_expected, n_neigh_expected = model.initial_connectivity
+        # nlist_expected, n_neigh_expected = model.initial_connectivity
         steps = 10
         regimes = np.zeros((model.nnodes, model.max_neighbours - 1))
         with pytest.raises(ValueError) as exception:
             model._simulate_initialise(
                 steps, 1, None, regimes, None, None,
-                None, None, None, None, None, None)
+                None, None, None, None, None, None, None)
             assert (
                 str("regimes shape is wrong") in exception.value)
 
     def test_regimes_type(self, cython_model):
         """Test exception when regimes type is wrong."""
         model = cython_model
-        nlist_expected, n_neigh_expected = model.initial_connectivity
+        # nlist_expected, n_neigh_expected = model.initial_connectivity
         steps = 10
         regimes = 1
         with pytest.raises(TypeError) as exception:
             model._simulate_initialise(
                 steps, 1, None, regimes, None, None,
-                None, None, None, None, None, None)
+                None, None, None, None, None, None, None)
             assert (
                 str("regimes type") in exception.value)
 

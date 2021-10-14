@@ -1,12 +1,12 @@
 """
 A simple, 3D peridynamics simulation example.
 
-This example is a 1.65m x 0.25m x 0.6m plain concrete canteliver beam with no
-pre-crack subjected to force controlled loading on the  right-hand side of the
+This example is a 1.65m x 0.25m x 0.6m plain concrete canteliver beam, with no
+pre-crack, subjected to force controlled loading on the right-hand side of the
 beam which linearly increases up to 45kN.
 
 In this example, the first time the volume, family and connectivity of the
-model are calculated, they are also stored in file '1650beam13539_model.h5'.
+model are calculated, they are also stored in file `1650beam13539_model.h5'.
 In subsequent simulations, the arrays are loaded from this h5 file instead of
 being calculated again, therefore reducing the overhead of initiating the
 model.
@@ -22,7 +22,7 @@ from peripy.utilities import read_array as read_model
 from pstats import SortKey, Stats
 
 
-# The .msh file is a finite element mesh generated with  a finite
+# The .msh file is a finite element mesh generated with a finite
 # element mesh generator. '1650beam5153.msh' was generated with gmsh and
 # contains 13539 particles
 mesh_file = pathlib.Path(__file__).parent.absolute() / '1650beam13539.msh'
@@ -32,18 +32,18 @@ def is_tip(x):
     """
     Return a boolean list of tip types for each cartesian direction.
 
-    Returns a boolean list, whose elements are not None when the particle
+    Returns a boolean list, whose elements are strings when the particle
     resides on a 'tip' to be measured for some displacement, velocity,
     acceleration, force or body_force in that cartesian direction. The value
     of the element of the list can be a string or an int, which is a flag for
     the tip type that the particle resides on. If a particle resides on more
-    than one tip, then any of the list elements can be a tuple of tip types**.
+    than one tip, then any of the list elements can be a tuple of tip types.
 
     :arg x: Particle coordinate array of size (3,).
     :type x: :class:`numpy.ndarray`
 
     :returns: A (3,) list of tip types.
-    :rtype: List of (tuples of) None, int or string.
+    :rtype: List of (tuples of) None or string.
     """
     # Particle does not live on a tip
     tip = [None, None, None]
@@ -65,7 +65,7 @@ def is_density(x):
     :arg x: Particle coordinate array of size (3,).
     :type x: :class:`numpy.ndarray`
 
-    :returns: density in [kg/m^3]
+    :returns: density of concrete in [kg/m^3]
     :rtype: float
     """
     return 2400.0
@@ -150,11 +150,11 @@ def main():
         profile = cProfile.Profile()
         profile.enable()
 
-    # Increasing the dynamic relaxation damping constant to a critical value
+    # Setting the dynamic relaxation damping constant to a critical value
     # will help the system to converge to the quasi-static steady-state.
-    # Try 0 damping
-    # >>> damping = 0.0
     damping = 2.5e6
+    # Try 0 damping, what happens?
+    # >>> damping = 0.0
     # Stable time step. Try increasing or decreasing it.
     dt = 1.3e-5
     integrator = VelocityVerletCL(dt=dt, damping=damping)
@@ -214,18 +214,19 @@ def main():
 
     # The force boundary condition magnitudes linearly increment in
     # time with a max force rate of 45kN over 5000 time-steps
-    force_bc_array = np.linspace(0, 45000, 5000)
+    steps = 5000
+    force_bc_array = np.linspace(0, 45000, steps)
 
     # Run the simulation
     # Use e.g. paraview to view the output .vtk files of simulate
     (u, damage, connectivity, force, ud, data) = model.simulate(
-        steps=5000,
+        steps=steps,
         force_bc_magnitudes=force_bc_array,
-        write=200
-        )
+        write_mesh=200,  # write to mesh every 200 steps
+        write_data=200)  # write to data every 200 steps
 
     # Try plotting data['rhs']['body_force'] vs data['rhs']['displacement']
-    # Try plotting data['model']['damage'] vs data['model']['step']
+    # Try plotting data['model']['damage_sum'] vs data['model']['step']
 
     # Note that bond_stiffness and critical_stretch can be changed without
     # re-initialising :class `Model`:, e.g.
