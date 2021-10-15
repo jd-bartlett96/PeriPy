@@ -244,7 +244,7 @@ def assemble_K_global(double[:, :] r, double[:, :] r0, int[:, :] nlist,
     #C = assemble_C_matrix(bc_types, bc_values, nlist)
     #K_reduced = (np.linalg.transpose(C_global) * K_global) * C_global
 
-    return K_global, C
+    return K_global
 
 def assemble_C_matrix(int[:] bc_types, int[:] bc_values, int nnodes):
 
