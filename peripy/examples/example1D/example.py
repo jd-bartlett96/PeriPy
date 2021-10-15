@@ -16,7 +16,7 @@ from pstats import SortKey, Stats
 from matplotlib import pyplot as plt
 
 
-mesh_def = np.linspace(start=0, stop=1, num=1000)
+mesh_def = np.linspace(start=0, stop=1, num=10)
 total_volume = max(mesh_def)
 
 
@@ -32,10 +32,8 @@ def is_displacement_boundary(x):
     :type x: :class:`numpy.float64`
     """
 
-    if x < 0.15:
-        bnd = -1
-    elif x > 0.85:
-        bnd = 1
+    if x < 0.1:
+        bnd = 0
     else:
         bnd = None
     return bnd

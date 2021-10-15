@@ -184,10 +184,9 @@ def update_displacement(double[:, :] u, double[:, :] bc_values,
                 else:
                     u[i, dim] = bc_scale * bc_values[i, dim]
 
-def assemble_K_tangent(double[:, :] r, double[:, :] r0, int[:, :] nlist,
-               int[:] n_neigh, double[:] volume, double bond_stiffness,
-               double[:, :] force_bc_values, int[:, :] force_bc_types,
-               double force_bc_scale):
+def assemble_K_global(double[:, :] r, double[:, :] r0, int[:, :] nlist,
+                int[:] n_neigh, double[:] volume, double bond_stiffness, 
+                double[:] bc_types, double[:] bc_values):
 
     """
     Calculate the bond stiffnesses for each node pairing and
@@ -212,12 +211,15 @@ def assemble_K_tangent(double[:, :] r, double[:, :] r0, int[:, :] nlist,
     """
 
     cdef int nnodes = nlist.shape[0]
-    cdef int i, j, dim, i_n_neigh, neigh
-    cdef double strain, l, nu, partial_volume_i, partial_volume_j
-    cdef double[1] k
+    cdef int i, j, dim, i_n_neigh, neigh, v, w
+    cdef double strain, l, nu, partial_volume_i, partial_volume_j, multiplier
+    cdef double[:, :] K_local, C
 
     #Loop through each of the nodes and work out their bond stiffnesses
     #Assemble and reduce to get K_tangent.
+
+    K_global = np.zeros((nnodes, nnodes), dtype=np.float64)
+    cdef double[:, :] K_matrix = K_global
 
     for i in range(nnodes):
         i_n_neigh = n_neigh[i]  #find number of neighbours for current node
@@ -226,16 +228,51 @@ def assemble_K_tangent(double[:, :] r, double[:, :] r0, int[:, :] nlist,
 
             if i < j:   #only need to loop over first half since, others will be covered by N3L.
                 l = ceuclid(r[i], r[j])     #find separation
-                strain = cstrain2(l, r0[i], r0[j])  #find strain
                 multiplier = ((bond_stiffness/(l*l*l)) * (volume[i]*volume[j])) #TO DO: need volume correction factor and softening factor here
-                #Build the local stiffness matrix:
+                #Build the local stiffness matrix (only works for 1D):
                 K_local = multiplier * [
                     [l*l, -(l*l)],
                     [-(l*l), l*l]
                 ]
 
+                K_global[i][i] += K_local[0][0]
+                K_global[i][j] += K_local[0][1]
+                K_global[j][i] += K_local[1][0]
+                K_global[j][j] += K_local[1][1]
+    print(K_global)
+
+    #C = assemble_C_matrix(bc_types, bc_values, nlist)
+    #K_reduced = (np.linalg.transpose(C_global) * K_global) * C_global
+
+    return K_global, C
+
+def assemble_C_matrix(int[:] bc_types, int[:] bc_values, int nnodes):
+
+    """TO DO: There is an issue in how the boundary conditions are parsed in.
+    Currently the case for no BC is that the value is parsed as None, which 
+    is of different type to 0 and 1. This doesnt work with the C code, since
+    it is expecting a list of entirely double types. 
+    """
+
+    cdef int n_bc = 0
+    cdef int i,j = 1
+    cdef double[:, :] C
+    for entry in bc_values:
+        if entry != None:
+            n_bc += 1
+    C = np.zeros((nnodes, nnodes - n_bc), dtype=np.float64)
+    #Build a constraint matrix. All rows with no BC form an I matrix,
+    #those with a BC are zeroed.
+    for i in range(nnodes):
+        if bc_values[i] != None:
+            continue
+        C[i][j] = 1
+        j += 1
+
+    return C
+
+def find_delta_u(double[:, :] K_global, double[:,:] C):
 
 
-
-
-      
+    K_reduced = (np.linalg.transpose(C) * K_global) * C
+    pass

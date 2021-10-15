@@ -2,7 +2,7 @@
 from abc import ABC, abstractmethod
 from .cl import double_fp_support, get_context, output_device_info
 from pyopencl import mem_flags as mf
-from .peridynamics import damage, bond_force, update_displacement, break_bonds
+from .peridynamics import damage, bond_force, update_displacement, break_bonds, assemble_K_global
 import pyopencl as cl
 import pathlib
 import numpy as np
@@ -526,15 +526,15 @@ class Implicit(Integrator):
             self, nlist, n_neigh, bond_stiffness, critical_stretch, plus_cs,
             u, ud, udd, force, body_force, damage, regimes, nregimes,
             nbond_types):
-        """
-        Initiate arrays that are dependent on simulation parameters.
+        
+        """Initiate arrays that are dependent on simulation parameters.
 
         Initiates arrays that are dependent on
         :meth:`peripy.model.Model.simulate` parameters. Since
         :class:`Implicit` uses cython in place of OpenCL, there are no
         buffers to be created, just python objects that are used as arguments
-        of the cython functions.
-        """
+        of the cython functions."""
+        
         if nregimes != 1:
             raise ValueError("n-linear damage model's are not supported by "
                              "this integrator. Please supply just one "
@@ -609,7 +609,7 @@ class Implicit(Integrator):
     def _break_bonds():
         pass
 
-    def _assemble_K_matrix():
+    def _assemble_K_matrix(self):
 
         """
         Calculates the bond stiffnesses of the neighbour interactions
@@ -618,10 +618,13 @@ class Implicit(Integrator):
         reduced form of the matrix, using boundary conditions to remove
         unnecessary rows and columns.        
         """
+        self.K_global = assemble_K_global(self.coords, self.coords, self.nlist, self.n_neigh,
+                                        self.volume, self.bond_stiffness, self.bc_types, self.bc_values)
 
-        pass
 
-    def _update_displacements():
+    def _update_displacements(self):
+
+        self.u = np.linalg.solve(self.K_global, self.lhs_vector)
         pass
 
     def _break_bonds(self, u, nlist, n_neigh):
