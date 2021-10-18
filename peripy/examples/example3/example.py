@@ -29,20 +29,21 @@ International Journal for Numerical and Analytical Methods in Geomechanics,
 
 [2] Mark Hobbs (2019), BB_PD, https://github.com/mhobbs18/BB_PD
 """
+import os
 import argparse
 import cProfile
 from io import StringIO
-import numpy as np
 import pathlib
+
+from pstats import SortKey, Stats
+import numpy as np
+import h5py
+import matplotlib.pyplot as plt
+
 from peripy import Model
 from peripy.integrators import VelocityVerletCL
 from peripy.utilities import write_array
 from peripy.utilities import read_array as read_model
-from pstats import SortKey, Stats
-import h5py
-import os
-import matplotlib.pyplot as plt
-
 
 # The .msh file is a point cloud. '175beam3620.msh' contains 3620 particles.
 mesh_file = pathlib.Path(__file__).parent.resolve() / '175beam3620.msh'

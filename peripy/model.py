@@ -1329,7 +1329,7 @@ class Model(object):
                 force_bc_magnitudes[step - 1])
 
             if (write_mesh and step % write_mesh == 0) or (
-                write_data and step & write_data == 0):
+                write_data and step % write_data == 0):
                 (u,
                 ud,
                 udd,
@@ -1391,6 +1391,8 @@ class Model(object):
                     data[tip_type_str]['displacement'] /= ntip
                     data[tip_type_str]['velocity'] /= ntip
                     data[tip_type_str]['acceleration'] /= ntip
+
+        # TODO: what is this code doing? Why is it repeated?
         (u,
          ud,
          udd,
@@ -1400,6 +1402,8 @@ class Model(object):
          nlist,
          n_neigh) = self.integrator.write(
              u, ud, udd, force, body_force, damage, nlist, n_neigh)
+        
+        print('I am here...')
 
         return (u, damage, (nlist, n_neigh), force, ud, data)
 
