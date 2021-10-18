@@ -226,14 +226,15 @@ def assemble_K_global(double[:, :] r, double[:, :] r0, int[:, :] nlist,
         for neigh in range(i_n_neigh):  #loop over all neighbours of ith node
             j = nlist[i, neigh]
 
-            if i < j:   #only need to loop over first half since, others will be covered by N3L.
+            if i < j and j != -1:   #only need to loop over first half since, others will be covered by N3L.
                 l = ceuclid(r[i], r[j])     #find separation
-                multiplier = ((bond_stiffness/(l*l*l)) * (volume[i]*volume[j])) #TO DO: need volume correction factor and softening factor here
+                multiplier = ((bond_stiffness/(l)) * (volume[i]*volume[j])) #TO DO: need volume correction factor and softening factor here
                 #Build the local stiffness matrix (only works for 1D):
-                K_local = multiplier * [
-                    [l*l, -(l*l)],
-                    [-(l*l), l*l]
-                ]
+                K_local = np.array([
+                    [multiplier, -(multiplier)],
+                    [-(multiplier), multiplier]
+                ])
+                
                 #There is a better way to do this by saving the indices but this works.                
                 K_global[i][i] += K_local[0][0]
                 K_global[i][j] += K_local[0][1]
@@ -241,12 +242,12 @@ def assemble_K_global(double[:, :] r, double[:, :] r0, int[:, :] nlist,
                 K_global[j][j] += K_local[1][1]
     print(K_global)
 
-    #C = assemble_C_matrix(bc_types, bc_values, nlist)
-    #K_reduced = (np.linalg.transpose(C_global) * K_global) * C_global
+    C = assemble_C_matrix(bc_types, bc_values, nnodes)
+    K_reduced = (np.transpose(C) * K_global) * C
 
     return K_global
 
-def assemble_C_matrix(int[:] bc_types, int[:] bc_values, int nnodes):
+def assemble_C_matrix(double[:] bc_types, double[:] bc_values, int nnodes):
 
     """TO DO: There is an issue in how the boundary conditions are parsed in.
     Currently the case for no BC is that the value is parsed as None, which 
@@ -260,6 +261,7 @@ def assemble_C_matrix(int[:] bc_types, int[:] bc_values, int nnodes):
     for entry in bc_values:
         if entry != None:
             n_bc += 1
+        print(n_bc, nnodes)
     C = np.zeros((nnodes, nnodes - n_bc), dtype=np.float64)
     #Build a constraint matrix. All rows with no BC form an I matrix,
     #those with a BC are zeroed.
@@ -268,11 +270,11 @@ def assemble_C_matrix(int[:] bc_types, int[:] bc_values, int nnodes):
             continue
         C[i][j] = 1
         j += 1
-
+    print(np.shape(C))
     return C
 
 def find_delta_u(double[:, :] K_global, double[:,:] C):
 
 
-    K_reduced = (np.linalg.transpose(C) * K_global) * C
+    
     pass
