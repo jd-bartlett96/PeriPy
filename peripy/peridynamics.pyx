@@ -186,7 +186,7 @@ def update_displacement(double[:, :] u, double[:, :] bc_values,
 
 def assemble_K_global(double[:, :] r, double[:, :] r0, int[:, :] nlist,
                 int[:] n_neigh, double[:] volume, double bond_stiffness, 
-                double[:] bc_types, double[:] bc_values):
+                double[:] bc_values, double[:] bc_types):
 
     """
     Calculate the bond stiffnesses for each node pairing and
@@ -240,12 +240,12 @@ def assemble_K_global(double[:, :] r, double[:, :] r0, int[:, :] nlist,
                 K_global[i][j] += K_local[0][1]
                 K_global[j][i] += K_local[1][0]
                 K_global[j][j] += K_local[1][1]
-    print(K_global)
-
+    
+    # Create the reduced K matrix. 
     C = assemble_C_matrix(bc_types, bc_values, nnodes)
-    K_reduced = (np.transpose(C) * K_global) * C
+    K_reduced = np.matmul(np.matmul(np.transpose(C), K_global), C)
 
-    return K_global
+    return K_reduced, K_global, C
 
 def assemble_C_matrix(double[:] bc_types, double[:] bc_values, int nnodes):
 
@@ -256,25 +256,45 @@ def assemble_C_matrix(double[:] bc_types, double[:] bc_values, int nnodes):
     """
 
     cdef int n_bc = 0
-    cdef int i,j = 1
+    cdef int i,j = 0
     cdef double[:, :] C
-    for entry in bc_values:
-        if entry != None:
+    for entry in bc_types:
+        if entry != 0:
             n_bc += 1
-        print(n_bc, nnodes)
     C = np.zeros((nnodes, nnodes - n_bc), dtype=np.float64)
     #Build a constraint matrix. All rows with no BC form an I matrix,
     #those with a BC are zeroed.
     for i in range(nnodes):
-        if bc_values[i] != None:
+        if bc_types[i] != 0:
             continue
         C[i][j] = 1
         j += 1
+
     print(np.shape(C))
     return C
 
-def find_delta_u(double[:, :] K_global, double[:,:] C):
+def find_delta_u(double[:, :] K_reduced, double[:, :] K_global, double[:, :] C, double[:, :] r, double displacement_bc_magnitude,
+                double[:] bc_types, double[:] bc_values):
 
-
+    cdef double[:] u_eff, u
+    cdef int i, nnodes
     
-    pass
+    nnodes = r.shape[0]
+    # This would need to be nnodes * DOF for above 1D.
+    u = np.zeros(nnodes)
+    # Assemble the known DOFs into a vector u.
+    for i in range(nnodes):
+        if bc_types[i] != 0 and bc_values[i] == 0:
+            u[i] = r[i][0]
+        elif bc_types[i] != 0 and bc_values[i] == 1:
+            u[i] = r[i][0] + displacement_bc_magnitude
+        elif bc_types[i] != 0 and bc_values[i] == -1:
+            u[i] = r[i][0] - displacement_bc_magnitude
+
+    # Transform u into u_eff - the reduction term which is taken 
+    # off the unconstrained DOF's force values.
+    u_eff = -1 * np.matmul(np.matmul(np.transpose(C), K_global), u)
+    
+    #Solve for the actual positions of the nodes.
+    x = np.linalg.solve(K_reduced, u_eff)
+    return x
