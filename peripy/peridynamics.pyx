@@ -234,7 +234,7 @@ def assemble_K_global(double[:, :] r, double[:, :] r0, int[:, :] nlist,
                     [l*l, -(l*l)],
                     [-(l*l), l*l]
                 ]
-
+                #There is a better way to do this by saving the indices but this works.                
                 K_global[i][i] += K_local[0][0]
                 K_global[i][j] += K_local[0][1]
                 K_global[j][i] += K_local[1][0]
