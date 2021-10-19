@@ -14,6 +14,7 @@ import warnings
 import meshio
 import sklearn.neighbors as neighbors
 
+
 _MeshElements = namedtuple("MeshElements", ["connectivity", "boundary"])
 _mesh_elements_2d = _MeshElements(connectivity="triangle",
                                   boundary="line")
@@ -267,10 +268,6 @@ class Model(object):
         else:
             self.horizon = horizon
 
-        # --------------------------------------------------------------------
-        #                       Build node families
-        # --------------------------------------------------------------------
-
         # Calculate the family (number of bonds in the initial configuration)
         # and connectivity for each node, if None is provided
         if family is None or connectivity is None:
@@ -362,22 +359,22 @@ class Model(object):
         self.initial_connectivity = (nlist, n_neigh)
         self.degrees_freedom = 3
 
-
-        # --------------------------------------------------------------------
-        #                       Build bondlist
-        # --------------------------------------------------------------------
-
         # TODO: should the bondlist be built within the class? Not possible 
         # because the integrator has to be defined before the model (input 
         # file) is built. Might be possible if we build the bondlist in the 
         # integrator.build method
 
-        self.bondlist = self._build_bondlist(nlist)
+        # Some bonds have been broken between the creation of family, and the
+        # creation of the crack. Therefore, these are not in nlist.
+        #time0 = time.time()
+        self.bondlist = self._build_bondlist3(nlist)
+        #time1 = time.time()
+        #bondlist = self._build_bondlist3(nlist)
+        #time2 = time.time()
+        #print(bondlist[:10])
+        #print(self.bondlist[:10])
+        #assert 0
         self.bond_length = self._calculate_bond_length()
-
-        # --------------------------------------------------------------------
-        #                  Calculate stiffness corrections
-        # --------------------------------------------------------------------
 
         # Calculate stiffness corrections if None is provided
         if stiffness_corrections is None:
@@ -504,6 +501,7 @@ class Model(object):
          self.ntips) = self._set_boundary_conditions(
             is_displacement_boundary, is_force_boundary, is_tip)
 
+        # TODO: connectivity is independent, so they should be in build
         # Build the integrator
         self.integrator.build(
             self.nnodes, self.degrees_freedom, self.max_neighbours,
@@ -645,22 +643,28 @@ class Model(object):
         return (family, nlist, n_neigh, max_neighbours)
 
     def _build_bondlist(self, nlist):
+        bondlist = []
+        for i, nlist_i in enumerate(nlist):
+            bondlist.append([[i, j] for j in nlist_i if i < j])
+        bondlist = [val for sublist in bondlist for val in sublist]
+        bondlist = np.array(bondlist)
+        return bondlist
 
-        bondlist = np.zeros(((np.sum(self.family) / 2).astype(int), 2),
-                            dtype=np.int)
+    def _build_bondlist3(self, nlist):
+        bondlist = [[i,j] for i, nlist_i in enumerate(nlist) for j in nlist_i if i < j]
+        bondlist = np.array(bondlist)
+        return bondlist
+
+    def _build_bondlist2(self, nlist):
+        bondlist = np.zeros(
+            ((np.sum(self.family) / 2).astype(int), 2), dtype=np.int)
         counter = 0
-
         for kNode in range(self.nnodes):
-
             for kFamily in range(len(nlist[kNode])):
-
                 family_member = nlist[kNode, kFamily]
-
                 if kNode < family_member:
-
                     bondlist[counter] = [kNode, family_member]
                     counter += 1
-
         return bondlist
 
     def _calculate_bond_length(self):
