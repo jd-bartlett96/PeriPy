@@ -91,14 +91,23 @@ def calculate_bond_softening_factor_sigmoid(
 @njit(parallel=True)
 def calculate_bond_softening_factor_trilinear(
         global_size, stretch, s0, s1, sc,
-        bond_softening_factor, flag_bond_softening_factor):
+        bond_softening_factor, flag_bond_softening_factor, beta=0.25):
     """
     Calculate the bond softening factors for the trilinear model.
 
     Also known as ``bond damge'', the bond softening factors are applied to
     satisfy the damage law.
+
+    :arg int global_size: The number of bonds.
+    :arg stretch:
+    :type stretch:
+    :arg float s0:
+    :arg float s1:
+    :arg float sc:
+    :arg bond_softening_factor:
+    :type bond_softening_factor:
+    :arg float beta:
     """
-    beta = 0.25
     eta = s1 / s0
     for bond in prange(global_size):
         # Factor out indexing
