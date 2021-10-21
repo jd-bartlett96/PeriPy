@@ -16,7 +16,7 @@ from pstats import SortKey, Stats
 from matplotlib import pyplot as plt
 
 
-mesh_def = np.linspace(start=0, stop=1, num=10)
+mesh_def = np.linspace(start=0, stop=1, num=1000)
 total_volume = max(mesh_def)
 
 

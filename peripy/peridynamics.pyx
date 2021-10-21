@@ -322,4 +322,4 @@ def find_displacements_implicit(double[:, :] K_global, double[:, :] r, double di
         u[i] += -1 * r[i][0]
         r[i][0] += u[i]    
 
-    return u, x
+    return u

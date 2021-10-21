@@ -12,32 +12,33 @@ volume = np.array([1/4, 1/2, 1/4], dtype=np.float64)
 bond_stiffness = np.float64(3)
 bc_values = np.array([0, 0, 1], dtype=np.float64)
 bc_types = np.array([1, 0, 1], dtype=np.float64)
-displacement_bc_magnitude = 0.05
+displacement_bc_magnitude = 0.07
 
 
 def main():
+    # Test the functions only.
+    """
     K_global = assemble_K_global(r, nlist, n_neigh, volume, bond_stiffness,
                         bc_values, bc_types)
     
-    u, x = find_displacements_implicit(K_global, r, displacement_bc_magnitude, bc_types, bc_values)
+    u = find_displacements_implicit(K_global, r, displacement_bc_magnitude, bc_types, bc_values)
     u = [[element] for element in u]
-    print(u, x)
+    #print(u, x)
+    """
 
+    # Test the integrator too.
     integrator = Implicit(None)
-    # Build the integrator
     integrator.build(
-        None, r, volume, None, bc_types,
+        None, 1, 1, r, volume, None, bc_types,
         bc_values, None, None, None, None, None)
     integrator.create_buffers(
         nlist, n_neigh, bond_stiffness, 0.5, None,
-        np.array([1]), None, None, None, None, None, None, 1, 1
-    )
+        np.array([1]), None, None, None, None, None, None, 1, 1)
     
     integrator(displacement_bc_magnitude, None)
     print(integrator.u)
     
 
-
-
 if __name__ == "__main__":
     main()
+    pass    
