@@ -1,11 +1,13 @@
 """Integrators."""
-from abc import ABC, abstractmethod
-from .cl import double_fp_support, get_context, output_device_info
-from pyopencl import mem_flags as mf
-from .peridynamics import damage, bond_force, update_displacement, break_bonds
-import pyopencl as cl
 import pathlib
+from abc import ABC, abstractmethod
+
 import numpy as np
+import pyopencl as cl
+from pyopencl import mem_flags as mf
+
+from .cl import double_fp_support, get_context, output_device_info
+from .peridynamics import damage, bond_force, update_displacement, break_bonds
 
 
 class Integrator(ABC):
