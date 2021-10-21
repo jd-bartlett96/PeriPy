@@ -1,4 +1,13 @@
 """Peridynamics model."""
+import warnings
+import pathlib
+from collections import namedtuple
+
+import numpy as np
+from tqdm import trange
+import meshio
+import sklearn.neighbors as neighbors
+
 from .integrators import Integrator
 from .utilities import write_array
 from .create_crack import create_crack
@@ -6,13 +15,6 @@ from .correction import (set_volume_correction,
                          set_imprecise_surface_correction,
                          set_precise_surface_correction,
                          set_micromodulus_function)
-from collections import namedtuple
-import numpy as np
-import pathlib
-from tqdm import trange
-import warnings
-import meshio
-import sklearn.neighbors as neighbors
 
 _MeshElements = namedtuple("MeshElements", ["connectivity", "boundary"])
 _mesh_elements_2d = _MeshElements(connectivity="triangle",
@@ -487,10 +489,6 @@ class Model(object):
             :class:`numpy.ndarray` or list of lists containing
             coordinates of nodes.
         :type mesh_file: str or :class:`numpy.ndarray` or list
-<<<<<<< HEAD
-=======
-
->>>>>>> feature/coordinates_meshless
         :returns: None
         :rtype: NoneType
         """
@@ -1391,8 +1389,6 @@ class Model(object):
                     data[tip_type_str]['displacement'] /= ntip
                     data[tip_type_str]['velocity'] /= ntip
                     data[tip_type_str]['acceleration'] /= ntip
-
-        # TODO: what is this code doing? Why is it repeated?
         (u,
          ud,
          udd,
@@ -1402,8 +1398,6 @@ class Model(object):
          nlist,
          n_neigh) = self.integrator.write(
              u, ud, udd, force, body_force, damage, nlist, n_neigh)
-        
-        print('I am here...')
 
         return (u, damage, (nlist, n_neigh), force, ud, data)
 
