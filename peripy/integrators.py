@@ -555,12 +555,12 @@ class Implicit(Integrator):
         self.body_force = body_force
 
         #Ensure that u has the right shape.
-        if u.ndim == 1:
-            u = np.array([[element] for element in u])
+        if self.u.ndim == 1:
+            self.u = np.array([[element] for element in self.u])
     
 
     def build(
-            self, nnodes, coords, volume,
+            self, nnodes, degrees_freedom, max_neighbours, coords, volume,
             family, bc_types, bc_values, force_bc_types, force_bc_values,
             stiffness_corrections, bond_types, densities):
         """
@@ -573,6 +573,8 @@ class Implicit(Integrator):
         objects that are used as arguments of the cython functions.
         """
         self.nnodes = nnodes
+        self.degrees_freedom = degrees_freedom
+        self.max_neighbours = max_neighbours
         self.coords = coords
         self.family = family
         self.volume = volume
@@ -630,8 +632,8 @@ class Implicit(Integrator):
     def _update_displacements(self, displacement_bc_magnitude):
 
         self.u = find_displacements_implicit(self.K_global, self.coords, displacement_bc_magnitude,
-                                            self.bc_types, self.bc_values)
-        
+                                            self.bc_types, self.bc_values)  
+        self.u = np.array([[element] for element in self.u])      
 
     def _break_bonds(self, u, nlist, n_neigh):
         """Break bonds which have exceeded the critical strain."""
