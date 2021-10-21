@@ -184,13 +184,12 @@ def update_displacement(double[:, :] u, double[:, :] bc_values,
                 else:
                     u[i, dim] = bc_scale * bc_values[i, dim]
 
-def assemble_K_global(double[:, :] r, double[:, :] r0, int[:, :] nlist,
-                int[:] n_neigh, double[:] volume, double bond_stiffness, 
-                double[:] bc_values, double[:] bc_types):
+def assemble_K_global(double[:, :] r, int[:, :] nlist, int[:] n_neigh, double[:] volume,  
+                    double bond_stiffness, double[:] bc_values, double[:] bc_types):
 
     """
     Calculate the bond stiffnesses for each node pairing and
-    assemble into a K matrix.
+    assemble into a global K matrix.
     :arg r: The current coordinates of each node.
     :type r: :class:`numpy.ndarray`
     :arg r0: The initial coordinates of each node.
@@ -215,86 +214,112 @@ def assemble_K_global(double[:, :] r, double[:, :] r0, int[:, :] nlist,
     cdef double strain, l, nu, partial_volume_i, partial_volume_j, multiplier
     cdef double[:, :] K_local, C
 
-    #Loop through each of the nodes and work out their bond stiffnesses
-    #Assemble and reduce to get K_tangent.
+    # Loop through each of the nodes and work out their bond stiffnesses
+    # Assemble and reduce to get K_tangent.
 
     K_global = np.zeros((nnodes, nnodes), dtype=np.float64)
     cdef double[:, :] K_matrix = K_global
 
     for i in range(nnodes):
-        i_n_neigh = n_neigh[i]  #find number of neighbours for current node
-        for neigh in range(i_n_neigh):  #loop over all neighbours of ith node
+        i_n_neigh = n_neigh[i]  # find number of neighbours for current node
+        for neigh in range(i_n_neigh):  # loop over all neighbours of ith node
             j = nlist[i, neigh]
 
-            if i < j and j != -1:   #only need to loop over first half since, others will be covered by N3L.
-                l = ceuclid(r[i], r[j])     #find separation
+            if i < j and j != -1:   # only need to loop over first half since, others will be covered by N3L.
+                l = ceuclid(r[i], r[j])     # find separation
                 multiplier = ((bond_stiffness/(l)) * (volume[i]*volume[j])) #TO DO: need volume correction factor and softening factor here
-                #Build the local stiffness matrix (only works for 1D):
+                # Build the local stiffness matrix (only works for 1D):
                 K_local = np.array([
                     [multiplier, -(multiplier)],
                     [-(multiplier), multiplier]
                 ])
                 
-                #There is a better way to do this by saving the indices but this works.                
+                # There is a better way to do this by saving the indices but this works.                
                 K_global[i][i] += K_local[0][0]
                 K_global[i][j] += K_local[0][1]
                 K_global[j][i] += K_local[1][0]
                 K_global[j][j] += K_local[1][1]
     
-    # Create the reduced K matrix. 
-    C = assemble_C_matrix(bc_types, bc_values, nnodes)
-    K_reduced = np.matmul(np.matmul(np.transpose(C), K_global), C)
 
-    return K_reduced, K_global, C
+    return K_global
 
-def assemble_C_matrix(double[:] bc_types, double[:] bc_values, int nnodes):
 
-    """TO DO: There is an issue in how the boundary conditions are parsed in.
-    Currently the case for no BC is that the value is parsed as None, which 
-    is of different type to 0 and 1. This doesnt work with the C code, since
-    it is expecting a list of entirely double types. 
+def find_displacements_implicit(double[:, :] K_global, double[:, :] r, double displacement_bc_magnitude,
+                        double[:] bc_types, double[:] bc_values):
+
+    """
+    Takes a preevaluated global stiffness matrix and displacement boundary
+    conditions and uses a constraint matrix to create a reduced stiffness 
+    matrix. Build the rhs vector and solves the system Ku = f for the 
+    displacements.
+    
     """
 
-    cdef int n_bc = 0
-    cdef int i,j = 0
-    cdef double[:, :] C
+    cdef double[:] u_eff, u, unconstrained_dofs
+    cdef double[:, :] C, u_return
+    cdef int i,j, n_bc, nnodes, DOF 
+    
+    nnodes = r.shape[0]
+    DOF = r.shape[1]
+
+    n_bc = 0
+    # Count number of constrained nodes.
     for entry in bc_types:
         if entry != 0:
             n_bc += 1
+
+    i = 0
+    j = 0
+    # Build a constraint matrix. All rows with no BC form an I matrix,
+    # those with a BC are zeroed.
     C = np.zeros((nnodes, nnodes - n_bc), dtype=np.float64)
-    #Build a constraint matrix. All rows with no BC form an I matrix,
-    #those with a BC are zeroed.
     for i in range(nnodes):
         if bc_types[i] != 0:
             continue
         C[i][j] = 1
         j += 1
 
-    print(np.shape(C))
-    return C
-
-def find_delta_u(double[:, :] K_reduced, double[:, :] K_global, double[:, :] C, double[:, :] r, double displacement_bc_magnitude,
-                double[:] bc_types, double[:] bc_values):
-
-    cdef double[:] u_eff, u
-    cdef int i, nnodes
+    # Build the reduced K matrix
+    K_reduced = np.matmul(np.matmul(np.transpose(C), K_global), C)
     
+    # Initiate vectors for displacements and flags for unconstrained DOFs
+    # and store number of nodes.
     nnodes = r.shape[0]
-    # This would need to be nnodes * DOF for above 1D.
-    u = np.zeros(nnodes)
-    # Assemble the known DOFs into a vector u.
+    u = np.zeros(nnodes) * DOF
+    unconstrained_dofs = np.zeros(nnodes - n_bc)
+
+    # Assemble the known DOFs into a vector u. Create a vector of the indices 
+    # of unconstrained DOFs in vector r --> length = nnodes - n_bc.
+    j = 0
     for i in range(nnodes):
-        if bc_types[i] != 0 and bc_values[i] == 0:
-            u[i] = r[i][0]
-        elif bc_types[i] != 0 and bc_values[i] == 1:
-            u[i] = r[i][0] + displacement_bc_magnitude
-        elif bc_types[i] != 0 and bc_values[i] == -1:
-            u[i] = r[i][0] - displacement_bc_magnitude
+        if bc_types[i] != 0: 
+            if bc_values[i] == 0:
+                u[i] = r[i][0]
+            elif bc_values[i] == 1:
+                u[i] = r[i][0] + displacement_bc_magnitude
+            elif bc_values[i] == -1:
+                u[i] = r[i][0] - displacement_bc_magnitude
+        else:
+            unconstrained_dofs[j] = i
+            j += 1
 
     # Transform u into u_eff - the reduction term which is taken 
     # off the unconstrained DOF's force values.
     u_eff = -1 * np.matmul(np.matmul(np.transpose(C), K_global), u)
     
-    #Solve for the actual positions of the nodes.
+    # Solve for the actual positions of the unconstrained nodes.
     x = np.linalg.solve(K_reduced, u_eff)
-    return x
+
+    # Now update u vector with the unconstrained DOF's found in x.
+    i = 0
+    for entry in unconstrained_dofs:
+        entry = int(entry)
+        u[entry] = x[i]
+        i += 1
+    # Subtract original positions to get displacements. Update positions.
+    i = 0
+    for i in range(nnodes):
+        u[i] += -1 * r[i][0]
+        r[i][0] += u[i]    
+
+    return u, x

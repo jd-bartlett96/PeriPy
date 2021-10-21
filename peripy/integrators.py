@@ -2,7 +2,7 @@
 from abc import ABC, abstractmethod
 from .cl import double_fp_support, get_context, output_device_info
 from pyopencl import mem_flags as mf
-from .peridynamics import damage, bond_force, update_displacement, break_bonds, assemble_K_global
+from .peridynamics import damage, bond_force, update_displacement, break_bonds, assemble_K_global, find_displacements_implicit
 import pyopencl as cl
 import pathlib
 import numpy as np
@@ -496,7 +496,7 @@ class Implicit(Integrator):
 
         :returns: An :class:`Euler` object
         """
-        self.dt = dt
+        # self.dt = dt
         # Not an OpenCL integrator
         self.context = None
 
@@ -511,15 +511,16 @@ class Implicit(Integrator):
             boundary conditions for the current time-step.
         """
 
-        #Update neighbour list
-        self._break_bonds()
-
         #Assemble the stiffness matrix for the problem.
         self.K_matrix = self._assemble_K_matrix()
 
         #Conduct one integration step
         #Needs a different function from other integrators here.
-        self._update_displacements()
+        self._update_displacements(displacement_bc_magnitude)
+        
+
+        #Update neighbour list - do I want to do this here or later on?
+        #self._break_bonds()
 
     
     def create_buffers(
@@ -559,7 +560,7 @@ class Implicit(Integrator):
     
 
     def build(
-            self, nnodes, degrees_freedom, max_neighbours, coords, volume,
+            self, nnodes, coords, volume,
             family, bc_types, bc_values, force_bc_types, force_bc_values,
             stiffness_corrections, bond_types, densities):
         """
@@ -579,10 +580,12 @@ class Implicit(Integrator):
         self.bc_values = bc_values
         self.force_bc_types = force_bc_types
         self.force_bc_values = force_bc_values
+
         # Make each of the coords into its own list and place within overall 
         # coords list, therefoere makes a 2D list from coords.
         if self.coords.ndim == 1:
             self.coords = np.array([[coord] for coord in self.coords])
+
         if bond_types is not None:
             raise ValueError("bond_types are not supported by this "
                              "integrator (expected {}, got {}), please use "
@@ -606,8 +609,10 @@ class Implicit(Integrator):
                                  type(densities)))
 
 
-    def _break_bonds():
-        pass
+    def _break_bonds(self, u, nlist, n_neigh):
+        """Break bonds which have exceeded the critical strain."""
+        break_bonds(self.coords+u, self.coords, nlist, n_neigh,
+                    self.critical_stretch)
 
     def _assemble_K_matrix(self):
 
@@ -618,14 +623,15 @@ class Implicit(Integrator):
         reduced form of the matrix, using boundary conditions to remove
         unnecessary rows and columns.        
         """
-        self.K_global = assemble_K_global(self.coords, self.coords, self.nlist, self.n_neigh,
-                                        self.volume, self.bond_stiffness, self.bc_types, self.bc_values)
+        self.K_global = assemble_K_global(self.coords, self.nlist, self.n_neigh, self.volume, 
+                                        self.bond_stiffness, self.bc_values, self.bc_types)
 
 
-    def _update_displacements(self):
+    def _update_displacements(self, displacement_bc_magnitude):
 
-        self.u = np.linalg.solve(self.K_global, self.lhs_vector)
-        pass
+        self.u = find_displacements_implicit(self.K_global, self.coords, displacement_bc_magnitude,
+                                            self.bc_types, self.bc_values)
+        
 
     def _break_bonds(self, u, nlist, n_neigh):
         """Break bonds which have exceeded the critical strain."""
@@ -641,7 +647,14 @@ class Implicit(Integrator):
         damage = self._damage(self.n_neigh)
         return (self.u, self.ud, self.udd, self.force, self.body_force, damage,
                 self.nlist, self.n_neigh)
+    
+    def _create_special_buffers(self):
+        """Create buffers programs that are special to the Euler integrator."""
+        # There are none
 
+    def _build_special(self):
+        """Build programs that are special to the Euler integrator."""
+        # There are none
     pass
 
 
