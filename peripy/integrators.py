@@ -99,13 +99,11 @@ class Integrator(ABC):
         self.max_neighbours = max_neighbours
         self.densities = densities
 
-        kernel_source = open(
-            pathlib.Path(__file__).parent.absolute() /
-            "cl/peridynamics.cl").read()
+        kernel_source = open(pathlib.Path(__file__).parent.absolute() /
+                             "cl/peridynamics.cl").read()
 
         # Build kernels
-        self.program = cl.Program(
-            self.context, kernel_source).build()
+        self.program = cl.Program(self.context, kernel_source).build()
 
         # Build bond_force program
         if (stiffness_corrections is None) and (bond_types is None):
@@ -119,6 +117,7 @@ class Integrator(ABC):
             self.bond_types_d = cl.Buffer(
                 self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
                 hostbuf=bond_types)
+
         elif (stiffness_corrections is not None) and (bond_types is None):
             self.bond_force_kernel = self.program.bond_force2
             self.stiffness_corrections_d = cl.Buffer(
@@ -129,6 +128,7 @@ class Integrator(ABC):
             self.bond_types_d = cl.Buffer(
                 self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
                 hostbuf=bond_types)
+
         elif (stiffness_corrections is None) and (bond_types is not None):
             self.bond_force_kernel = self.program.bond_force3
             self.bond_types_d = cl.Buffer(
@@ -139,6 +139,7 @@ class Integrator(ABC):
             self.stiffness_corrections_d = cl.Buffer(
                 self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
                 hostbuf=stiffness_corrections)
+
         elif ((stiffness_corrections is not None)
               and (bond_types is not None)):
             self.bond_force_kernel = self.program.bond_force4
