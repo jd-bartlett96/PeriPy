@@ -571,6 +571,8 @@ class Implicit(Integrator):
         instantiates the arrays and variables that are independent of
         :meth:`peripy.model.Model.simulate` parameters as python
         objects that are used as arguments of the cython functions.
+
+        TO DO: Use the nnodes and degrees_freedom information.
         """
         self.nnodes = nnodes
         self.degrees_freedom = degrees_freedom
