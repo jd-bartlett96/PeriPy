@@ -377,7 +377,7 @@ class Model_1D(object):
          self.ntips) = self._set_boundary_conditions(
             is_displacement_boundary, is_force_boundary, is_tip)
 
-        #Build the integrator
+        # Build the integrator
         self.integrator.build(
             self.nnodes, self.degrees_freedom, self.max_neighbours,
             self.coords, self.volume, self.family, self.bc_types,
@@ -405,7 +405,7 @@ class Model_1D(object):
                             ", got {})".format(
                                     np.ndarray, type(coords)))
 
-        #Need to deal with boundary here.
+        # Need to deal with boundary here.
 
     def write_mesh(self, filename, damage=None, displacements=None,
                    file_format=None):
