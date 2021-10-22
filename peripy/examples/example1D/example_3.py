@@ -84,6 +84,8 @@ def main():
         displacement_bc_magnitudes=displacement_bc_magnitude,
         write=1)
 
+    #print(u, damage)
+
     
 
     if args.profile:
@@ -93,8 +95,8 @@ def main():
         stats.print_stats(.05)
         print(s.getvalue())
     
-    #plt.scatter(mesh_def, damage)
-    #plt.show()
+    plt.scatter(mesh_def, u)
+    plt.show()
     #print(max(u))
     
 
