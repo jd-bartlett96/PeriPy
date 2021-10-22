@@ -628,7 +628,7 @@ class Implicit(Integrator):
         unnecessary rows and columns.        
         """
         self.K_global = assemble_K_global(self.coords, self.nlist, self.n_neigh, self.volume, 
-                                        self.bond_stiffness, self.bc_values, self.bc_types)
+                                     self.bond_stiffness, self.bc_values, self.bc_types)
 
 
     def _update_displacements(self, displacement_bc_magnitude):
