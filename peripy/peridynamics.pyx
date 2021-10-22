@@ -185,7 +185,7 @@ def update_displacement(double[:, :] u, double[:, :] bc_values,
                     u[i, dim] = bc_scale * bc_values[i, dim]
 
 def assemble_K_global(double[:, :] r, int[:, :] nlist, int[:] n_neigh, double[:] volume,  
-                    double bond_stiffness, double[:] bc_values, double[:] bc_types):
+                    int bond_stiffness, double[:, :] bc_values, int[:, :] bc_types):
 
     """
     Calculate the bond stiffnesses for each node pairing and
@@ -213,6 +213,7 @@ def assemble_K_global(double[:, :] r, int[:, :] nlist, int[:] n_neigh, double[:]
     cdef int i, j, dim, i_n_neigh, neigh, v, w
     cdef double strain, l, nu, partial_volume_i, partial_volume_j, multiplier
     cdef double[:, :] K_local, C
+
 
     # Loop through each of the nodes and work out their bond stiffnesses
     # Assemble and reduce to get K_tangent.
@@ -245,7 +246,7 @@ def assemble_K_global(double[:, :] r, int[:, :] nlist, int[:] n_neigh, double[:]
 
 
 def find_displacements_implicit(double[:, :] K_global, double[:, :] r, double displacement_bc_magnitude,
-                        double[:] bc_types, double[:] bc_values):
+                        int[:, :] bc_types, double[:, :] bc_values):
 
     """
     Takes a preevaluated global stiffness matrix and displacement boundary
@@ -265,7 +266,7 @@ def find_displacements_implicit(double[:, :] K_global, double[:, :] r, double di
     n_bc = 0
     # Count number of constrained nodes.
     for entry in bc_types:
-        if entry != 0:
+        if entry[0] != 0:
             n_bc += 1
 
     i = 0
@@ -274,7 +275,7 @@ def find_displacements_implicit(double[:, :] K_global, double[:, :] r, double di
     # those with a BC are zeroed.
     C = np.zeros((nnodes, nnodes - n_bc), dtype=np.float64)
     for i in range(nnodes):
-        if bc_types[i] != 0:
+        if bc_types[i][0] != 0:
             continue
         C[i][j] = 1
         j += 1
@@ -292,12 +293,12 @@ def find_displacements_implicit(double[:, :] K_global, double[:, :] r, double di
     # of unconstrained DOFs in vector r --> length = nnodes - n_bc.
     j = 0
     for i in range(nnodes):
-        if bc_types[i] != 0: 
-            if bc_values[i] == 0:
+        if bc_types[i][0] != 0: 
+            if bc_values[i][0] == 0:
                 u[i] = r[i][0]
-            elif bc_values[i] == 1:
+            elif bc_values[i][0] == 1:
                 u[i] = r[i][0] + displacement_bc_magnitude
-            elif bc_values[i] == -1:
+            elif bc_values[i][0] == -1:
                 u[i] = r[i][0] - displacement_bc_magnitude
         else:
             unconstrained_dofs[j] = i
