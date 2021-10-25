@@ -246,7 +246,8 @@ def assemble_K_global(double[:, :] r, int[:, :] nlist, int[:] n_neigh, double[:]
 
 
 def find_displacements_implicit(double[:, :] K_global, double[:, :] r, double displacement_bc_magnitude,
-                        int[:, :] bc_types, double[:, :] bc_values):
+                        double force_bc_magnitude, int[:, :] bc_types, double[:, :] bc_values,
+                        int[:, :] force_bc_types, double[:, :] force_bc_values):
 
     """
     Takes a preevaluated global stiffness matrix and displacement boundary
@@ -256,7 +257,7 @@ def find_displacements_implicit(double[:, :] K_global, double[:, :] r, double di
     
     """
 
-    cdef double[:] u_eff, u, unconstrained_dofs
+    cdef double[:] u_eff, u, unconstrained_dofs, force_vector
     cdef double[:, :] C, u_return
     cdef int i,j, n_bc, nnodes, DOF 
     
@@ -271,6 +272,14 @@ def find_displacements_implicit(double[:, :] K_global, double[:, :] r, double di
 
     i = 0
     j = 0
+    # Build force vector
+    force_vector = np.zeros(nnodes)
+    for i in range(nnodes):
+        if force_bc_types[i][0] != 0:
+            force_vector[i] = force_bc_magnitude * force_bc_values[i][0]
+            
+
+
     # Build a constraint matrix. All rows with no BC form an I matrix,
     # those with a BC are zeroed.
     C = np.zeros((nnodes, nnodes - n_bc), dtype=np.float64)
@@ -306,8 +315,13 @@ def find_displacements_implicit(double[:, :] K_global, double[:, :] r, double di
 
     # Transform u into u_eff - the reduction term which is taken 
     # off the unconstrained DOF's force values.
-    u_eff = -1 * np.matmul(np.matmul(np.transpose(C), K_global), u)
-    
+    forces_reduced = np.zeros(nnodes - n_bc)
+    i = 0
+    for entry in unconstrained_dofs:
+        entry = int(entry)
+        forces_reduced[i] = force_vector[entry]
+        i += 1
+    u_eff = forces_reduced - 1 * np.matmul(np.matmul(np.transpose(C), K_global), u)
     # Solve for the actual positions of the unconstrained nodes.
     x = np.linalg.solve(K_reduced, u_eff)
 

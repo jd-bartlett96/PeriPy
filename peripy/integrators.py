@@ -500,7 +500,7 @@ class Implicit(Integrator):
         # Not an OpenCL integrator
         self.context = None
 
-    def __call__(self, displacement_bc_magnitude, force_bc_magnitude):
+    def __call__(self, displacement_bc_magnitude, force_bc_magnitudes):
         
         """
         Conduct one iteration of the integrator.
@@ -516,7 +516,7 @@ class Implicit(Integrator):
 
         #Conduct one integration step
         #Needs a different function from other integrators here.
-        self._update_displacements(displacement_bc_magnitude)
+        self._update_displacements(displacement_bc_magnitude, force_bc_magnitudes)
 
     
     def create_buffers(
@@ -623,14 +623,15 @@ class Implicit(Integrator):
         reduced form of the matrix, using boundary conditions to remove
         unnecessary rows and columns.        
         """
+        
         self.K_global = assemble_K_global(self.coords, self.nlist, self.n_neigh, self.volume, 
                                      self.bond_stiffness, self.bc_values, self.bc_types)
 
 
-    def _update_displacements(self, displacement_bc_magnitude):
-
+    def _update_displacements(self, displacement_bc_magnitude, force_bc_magnitudes):
         self.u = find_displacements_implicit(self.K_global, self.coords, displacement_bc_magnitude,
-                                            self.bc_types, self.bc_values)  
+                                            force_bc_magnitudes, self.bc_types, self.bc_values,
+                                            self.force_bc_types, self.force_bc_values)  
         self.u = np.array([[element] for element in self.u])      
 
     def _break_bonds(self, u, nlist, n_neigh):

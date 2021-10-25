@@ -16,7 +16,7 @@ from pstats import SortKey, Stats
 from matplotlib import pyplot as plt
 
 
-mesh_def = np.linspace(start=0, stop=1, num=1000)
+mesh_def = np.linspace(start=0, stop=1, num=10)
 total_volume = max(mesh_def)
 
 
@@ -35,9 +35,30 @@ def is_displacement_boundary(x):
     if x < 0.1:
         bnd = 0
     elif x > 0.9:
-        bnd = 1
+        bnd = 0
     else:
         bnd = None
+    return bnd
+
+def is_force_boundary(x):
+
+    """
+    Return a boolean force boundary.
+
+    Returns a boolean list, whose elements are:
+        None where there is no boundary condition;
+        -1 where the boundary is displacement loaded in negative direction;
+        1 where the boundary is displacement loaded in positive direction;
+        0 where the boundary is clamped;
+
+    :arg x: Particle coordinate array of size (3,).
+    :type x: :class:`numpy.ndarray`
+    """
+
+    bnd = None
+    if x < 0.9 and x > 0.1:
+        bnd = np.random.normal(0, 1)
+
     return bnd
 
 def main():
@@ -59,14 +80,14 @@ def main():
     # bond, using Silling's (2005) derivation for the prototype microelastic
     # brittle (PMB) material model.
     # An arbritrary value of the critical_stretch = 0.005m is used.
-    horizon = 0.05
+    horizon = 0.125
     bond_stiffness = 18.00 * 0.05 / (np.pi * horizon**4)
     # The :class:`peripy.model.Model` defines and calculates the
     # connectivity of the model, as well as the boundary conditions and crack.
     model = Model_1D(
         mesh_def, integrator=integrator, horizon=horizon,
         critical_stretch=0.005, bond_stiffness=bond_stiffness,
-        is_displacement_boundary=is_displacement_boundary,
+        is_displacement_boundary=is_displacement_boundary, is_force_boundary=is_force_boundary,
         dimensions=2, initial_crack=None, volume_total=total_volume)
 
     # The simulation will have 1000 time steps, and last
@@ -77,6 +98,8 @@ def main():
     # 2.5e-6 m per time-step, giving a total final displacement (the sum of the
     # left and right hand side) of 5mm.
     displacement_bc_magnitude = np.array([0.0005])
+    force_bc_magnitudes = np.array([.001])
+
 
     # The :meth:`Model.simulate` method can be used to conduct a peridynamics
     # simulation. Here it is possible to define the boundary condition
@@ -84,11 +107,9 @@ def main():
     u, damage, *_ = model.simulate(
         steps=steps,
         displacement_bc_magnitudes=displacement_bc_magnitude,
+        force_bc_magnitudes=force_bc_magnitudes,
         write=1)
-
-    #print(u)
-
-    
+   
 
     if args.profile:
         profile.disable()
@@ -99,7 +120,6 @@ def main():
     
     plt.scatter(mesh_def, u)
     plt.show()
-    #print(max(u))
     
 
 
