@@ -34,6 +34,8 @@ def is_displacement_boundary(x):
 
     if x < 0.1:
         bnd = 0
+    elif x > 0.9:
+        bnd = 1
     else:
         bnd = None
     return bnd
@@ -57,7 +59,7 @@ def main():
     # bond, using Silling's (2005) derivation for the prototype microelastic
     # brittle (PMB) material model.
     # An arbritrary value of the critical_stretch = 0.005m is used.
-    horizon = 0.1
+    horizon = 0.05
     bond_stiffness = 18.00 * 0.05 / (np.pi * horizon**4)
     # The :class:`peripy.model.Model` defines and calculates the
     # connectivity of the model, as well as the boundary conditions and crack.
@@ -74,7 +76,7 @@ def main():
     # The boundary condition magnitudes will be applied at a rate of
     # 2.5e-6 m per time-step, giving a total final displacement (the sum of the
     # left and right hand side) of 5mm.
-    displacement_bc_magnitude = np.array([0.05])
+    displacement_bc_magnitude = np.array([0.0005])
 
     # The :meth:`Model.simulate` method can be used to conduct a peridynamics
     # simulation. Here it is possible to define the boundary condition
@@ -84,7 +86,7 @@ def main():
         displacement_bc_magnitudes=displacement_bc_magnitude,
         write=1)
 
-    #print(u, damage)
+    #print(u)
 
     
 
