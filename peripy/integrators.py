@@ -7,7 +7,9 @@ import pyopencl as cl
 import pathlib
 import numpy as np
 from .peridynamics_numba import (
-    calculate_stretch, calculate_bsf_trilinear, calculate_bsf_non_linear,
+    calculate_bond_softening_factor_sigmoid, calculate_stretch,
+    calculate_bond_softening_factor_trilinear,
+    calculate_bond_softening_factor_exponential,
     calculate_bond_force, calculate_nodal_force, euler_cromer,
     calculate_damage)
 
@@ -486,13 +488,37 @@ class EulerNumba(Integrator):
 
         :returns: A :class:`EulerNumba` object
         """
-        # These have been put in because the n-linear damage model is not
-        # included
-        # So, will need to include code for the n-linear damage model
-        # Use Mark's beta?
         self.dt = dt
         self.context = None     # Not an OpenCL integrator
- 
+
+     def __call__(self, displacement_bc_magnitude, force_bc_magnitude):
+        """
+        Conduct one iteration of the integrator.
+
+        :arg float displacement_bc_magnitude: the magnitude applied to the
+             displacement boundary conditions for the current time-step.
+        :arg float force_bc_magnitude: the magnitude applied to the force
+            boundary conditions for the current time-step.
+        """
+
+        # Calculate the force due to the bonds on each node
+        self.force = self._bond_force(
+            force_bc_magnitude, self.u, self.nlist, self.n_neigh)
+        # Conduct one integration step
+        # displacement bc magnitude updated every time step
+        self._update_displacement(
+            self.u, self.force, displacement_bc_magnitude)
+
+
+
+
+        # Time integration
+        self.u, self.velocity = self._time_integration(
+            nodal_forces, displacement_bc_magnitude)
+
+        self.force = np.zeros((self.nnodes, 3))  # nodal_forces
+        self.body_force = nodal_forces  # TODO: what is this doing?
+
     def __call__(self, displacement_bc_magnitude, force_bc_magnitude):
         """
         Conduct one iteration of the integrator.
@@ -591,7 +617,7 @@ class EulerNumba(Integrator):
         self.densities = densities
         self.bondlist = bondlist
         self.bond_length = bond_length
-        nbonds = len(bondlist)
+        self.global_size = len(bondlist)
         self.bond_softening_factor = np.zeros(nbonds)
         self.flag_bsf = np.zeros(nbonds)
         self.velocity = np.zeros((nnodes,3))
@@ -605,42 +631,48 @@ class EulerNumba(Integrator):
         """Build programs that are special to the integrator."""
         # There are none
 
-    def _calculate_stretch(self, deformed_coordinates):
+    def _bond_force():
+        """Calculate bond force for __call__."""
+        # Update coordinates
+        deformed_coordinates = self.coords + self.u
+        # Calculate bond stretch
         (deformed_X, deformed_Y, deformed_Z,
-         deformed_length, stretch) = calculate_stretch(
-            self.bondlist, deformed_coordinates, self.bond_length)
-        return deformed_X, deformed_Y, deformed_Z, deformed_length, stretch
-
-    def _calculate_bsf_trilinear(self, stretch, s0, s1, sc):
+        deformed_length, stretch) = calculate_stretch(
+             self.bondlist, deformed_coordinates, self.bond_length)
+        # Calculate bond softening factor
         (self.bond_softening_factor,
-         self.flag_bsf) = calculate_bsf_trilinear(
-            stretch, s0, s1, sc, self.bond_softening_factor, self.flag_bsf)
-        return self.bond_softening_factor, self.flag_bsf
-
-    def _calculate_bsf_non_linear(self, stretch, s0, sc):
-        (self.bond_softening_factor,
-         self.flag_bsf) = calculate_bsf_non_linear(
-            stretch, s0, sc, self.bond_softening_factor, self.flag_bsf)
-        return self.bond_softening_factor, self.flag_bsf
-
-    def _calculate_bond_forces(
-            self, bond_stiffness, stretch, volume,
-            deformed_X, deformed_Y, deformed_Z, deformed_length):
-        (bond_force_X,
-         bond_force_Y,
-         bond_force_Z) = calculate_bond_force(
-            bond_stiffness, self.bond_softening_factor, stretch, volume,
-            deformed_X, deformed_Y, deformed_Z, deformed_length)
-        return bond_force_X, bond_force_Y, bond_force_Z
-
-    def _calculate_nodal_forces(
-            self, bond_force_X, bond_force_Y, bond_force_Z):
+         self.flag_bsf) = self._calculate_bsf_trilinear(
+             stretch, self.critical_stretch)
+        # Calculate bond forces
+        (bond_force_X, bond_force_Y,
+        bond_force_Z) = self.calculate_bond_force(
+            self.bond_stiffness, stretch, self.volume, deformed_X,
+            deformed_Y, deformed_Z, deformed_length)
+        # Calculate nodal forces
         nodal_forces = calculate_nodal_force(
             self.nnodes, self.bondlist,
             bond_force_X, bond_force_Y, bond_force_Z)
-        return nodal_forces
 
-    def _time_integration(self, nodal_force, bc_scale):
+    def _calculate_bsf_trilinear(self, stretch, critical_stretch):
+        self.bond_softening_factor = calculate_bsf_trilinear(
+            stretch, critical_stretch[0],
+            critical_stretch[1], critical_stretch[2],
+            self.bond_softening_factor)
+        return self.bond_softening_factor
+
+    def _calculate_bsf_non_linear(self, stretch, critical_stretch):
+        self.bond_softening_factor = calculate_bsf_non_linear(
+            stretch, critical_stretch[0], critical_stretch[1],
+            self.bond_softening_factor)
+        return self.bond_softening_factor
+
+    def _calculate_bsf_sigmoid(self, stretch, critical_stretch):
+        self.bond_softening_factor = calculate_bond_softening_factor_sigmoid(
+            global_size, stretch, critical_stretch[0]. critical_stretch[1],
+            bond_softening_factor)
+        return self.bond_softening_factor
+
+    def _update_displacement(self, nodal_force, bc_scale):
         u, v = euler_cromer(
             nodal_force, self.u, self.velocity, self.density, self.bc_types,
             self.bc_values, bc_scale, self.dt)
