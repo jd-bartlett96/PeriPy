@@ -517,10 +517,6 @@ class Implicit(Integrator):
         #Conduct one integration step
         #Needs a different function from other integrators here.
         self._update_displacements(displacement_bc_magnitude)
-        
-
-        #Update neighbour list - do I want to do this here or later on?
-        #self._break_bonds()
 
     
     def create_buffers(
