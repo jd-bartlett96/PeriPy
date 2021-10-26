@@ -670,7 +670,7 @@ __kernel void
 	// Access local node within node_id_i's horizon with corresponding node_id_j,
 	const int node_id_j = nlist[global_id];
 
-    // Non-linear model
+    // Non-linear model parameters 
     double s0;
     double sc;
     double alpha;
@@ -678,25 +678,29 @@ __kernel void
     double numerator;
     double denominator = 1 - exp(-k);
     double residual;
+    double tmp_bond_damage;
 
     // Find bond type, which chooses the damage model
     const int bond_type = bond_types[global_id];
     int regime = regimes[global_id];
     const double current_critical_stretch = critical_stretch[bond_type * nregimes + regime];
 
-	// If bond is not broken
-	if (node_id_j != -1) {
-		const double xi_x = r0[3 * node_id_j + 0] - r0[3 * node_id_i + 0];
-		const double xi_y = r0[3 * node_id_j + 1] - r0[3 * node_id_i + 1];
-		const double xi_z = r0[3 * node_id_j + 2] - r0[3 * node_id_i + 2];
+	// Undeformed bond - x,y,z component
+    const double xi_x = r0[3 * node_id_j + 0] - r0[3 * node_id_i + 0];
+    const double xi_y = r0[3 * node_id_j + 1] - r0[3 * node_id_i + 1];
+    const double xi_z = r0[3 * node_id_j + 2] - r0[3 * node_id_i + 2];
 
-		const double xi_eta_x = u[3 * node_id_j + 0] - u[3 * node_id_i + 0] + xi_x;
-		const double xi_eta_y = u[3 * node_id_j + 1] - u[3 * node_id_i + 1] + xi_y;
-		const double xi_eta_z = u[3 * node_id_j + 2] - u[3 * node_id_i + 2] + xi_z;
+    // Deformed bond - x,y,z component
+    const double xi_eta_x = u[3 * node_id_j + 0] - u[3 * node_id_i + 0] + xi_x;
+    const double xi_eta_y = u[3 * node_id_j + 1] - u[3 * node_id_i + 1] + xi_y;
+    const double xi_eta_z = u[3 * node_id_j + 2] - u[3 * node_id_i + 2] + xi_z;
 
-		const double xi = sqrt(xi_x * xi_x + xi_y * xi_y + xi_z * xi_z);
-		const double y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
-		const double s = (y -  xi)/ xi;
+    // Undeformed and deformed bond length
+    const double xi = sqrt(xi_x * xi_x + xi_y * xi_y + xi_z * xi_z);
+    const double y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
+    
+    // Bond stretch
+    const double s = (y -  xi)/ xi;
 
     // Non-linear constitutive model
     if (s0 < s && s < sc){
@@ -708,11 +712,10 @@ __kernel void
         tmp_bond_damage = 1;
     }
 
-    if (tmp_bond_damage > bond_damage){  // Bond damage can only increase
-        bond_damage = tmp_bond_damage;
+    if (tmp_bond_damage > bond_damage[index]){  // Bond damage can only increase
+        bond_damage[index] = tmp_bond_damage;
     }
 
-    }
 
     // Wait for all threads to catch up
     barrier(CLK_LOCAL_MEM_FENCE);
