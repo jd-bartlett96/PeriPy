@@ -424,6 +424,15 @@ class Model(object):
          self.nregimes) = self._set_damage_model(
              bond_stiffness, critical_stretch)
 
+        # TODO: build non-linear softening model:
+        # d - softening parameter
+        # s0 - linear elastic limit
+        # sc - critical stretch
+        # k - rate of exponential decay
+        # alpha - position of the transition from exponential to linear
+        # decay
+        self.bond_damage = self._set_non_linear_model()
+
         if bond_types is None:
             # Calculate bond types and write to file
             self.bond_types = self._set_bond_types(
@@ -1115,6 +1124,14 @@ class Model(object):
         return (bond_stiffness, critical_stretch, plus_cs, nbond_types,
                 nregimes)
 
+    def _set_non_linear_model(self):
+        """Build the non-linear constiutive model"""
+
+        bond_damage = np.zeros((self.nnodes, self.max_neighbours),
+                               dtype=np.float64)
+
+        return bond_damage
+
     def _set_boundary_conditions(
             self, is_displacement_boundary, is_force_boundary, is_tip):
         """
@@ -1605,9 +1622,11 @@ class Model(object):
                         }
 
         # Initialise the OpenCL buffers
+        # TODO: include bond_damage
         self.integrator.create_buffers(
             nlist, n_neigh, bond_stiffness, critical_stretch, plus_cs, u, ud,
-            udd, force, body_force, damage, regimes, nregimes, nbond_types)
+            udd, force, body_force, damage, regimes, nregimes, nbond_types,
+            self.bond_damage)
 
         return (u, ud, udd, force, body_force, nlist, n_neigh,
                 displacement_bc_magnitudes, force_bc_magnitudes, damage, data,

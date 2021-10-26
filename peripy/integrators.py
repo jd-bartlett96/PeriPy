@@ -193,7 +193,7 @@ class Integrator(ABC):
     def create_buffers(
             self, nlist, n_neigh, bond_stiffness, critical_stretch, plus_cs, u,
             ud, udd, force, body_force, damage, regimes, nregimes,
-            nbond_types):
+            nbond_types, bond_damage):
         """
         Initialise the OpenCL buffers.
 
@@ -231,7 +231,7 @@ class Integrator(ABC):
 
         # Create OpenCL buffers that are dependent on
         # :meth:`peripy.model.Model.simulate` parameters.
-        # Read and write
+        # Read and write        
         self.force_d = cl.Buffer(
             self.context, mf.READ_WRITE, force.nbytes)
         self.nlist_d = cl.Buffer(
@@ -246,6 +246,9 @@ class Integrator(ABC):
         self.udd_d = cl.Buffer(
             self.context, mf.READ_WRITE | mf.COPY_HOST_PTR,
             hostbuf=udd)
+        self.bond_damage_d = cl.Buffer(
+            self.context, mf.READ_WRITE | mf.COPY_HOST_PTR,
+            hostbuf=bond_damage)
         # Write only
         self.damage_d = cl.Buffer(
             self.context, mf.WRITE_ONLY, damage.nbytes)
