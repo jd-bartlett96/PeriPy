@@ -282,7 +282,8 @@ def main():
         steps=steps,
         displacement_bc_magnitudes=displacement_bc_array,
         write_mesh=5000,  # write to mesh every 5000 time steps
-        write_data=100)  # write to data every 100 time steps
+        write_data=100,   # write to data every 100 time steps
+        bond_damage=model.bond_damage)
 
     force = np.array(data['force']['body_force']) / 1000
     left_displacement = 1000. * np.array(data['CMOD_left']['displacement'])
@@ -293,7 +294,7 @@ def main():
     try:
         write_array(write_path_solutions / "data.h5", "force", np.array(force))
         write_array(write_path_solutions / "data.h5", "CMOD", np.array(CMOD))
-    except OSError:  # data.h5 already exists
+    except ValueError:  # data.h5 already exists (OSError -> ValueError)
         os.remove(write_path_solutions / "data.h5")
         write_array(write_path_solutions / "data.h5", "force", np.array(force))
         write_array(write_path_solutions / "data.h5", "CMOD", np.array(CMOD))

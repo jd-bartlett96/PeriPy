@@ -105,50 +105,60 @@ class Integrator(ABC):
         # Build kernels
         self.program = cl.Program(self.context, kernel_source).build()
 
-        # Build bond_force program
-        if (stiffness_corrections is None) and (bond_types is None):
-            self.bond_force_kernel = self.program.bond_force1
-            # Placeholder buffers
-            stiffness_corrections = np.array([0], dtype=np.float64)
-            bond_types = np.array([0], dtype=np.intc)
-            self.stiffness_corrections_d = cl.Buffer(
-                self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
-                hostbuf=stiffness_corrections)
-            self.bond_types_d = cl.Buffer(
-                self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
-                hostbuf=bond_types)
+        # # Build bond_force program
+        # if (stiffness_corrections is None) and (bond_types is None):
+        #     self.bond_force_kernel = self.program.bond_force1
+        #     # Placeholder buffers
+        #     stiffness_corrections = np.array([0], dtype=np.float64)
+        #     bond_types = np.array([0], dtype=np.intc)
+        #     self.stiffness_corrections_d = cl.Buffer(
+        #         self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+        #         hostbuf=stiffness_corrections)
+        #     self.bond_types_d = cl.Buffer(
+        #         self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+        #         hostbuf=bond_types)
 
-        elif (stiffness_corrections is not None) and (bond_types is None):
-            self.bond_force_kernel = self.program.bond_force2
-            self.stiffness_corrections_d = cl.Buffer(
-                self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
-                hostbuf=stiffness_corrections)
-            # Placeholder buffers
-            bond_types = np.array([0], dtype=np.intc)
-            self.bond_types_d = cl.Buffer(
-                self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
-                hostbuf=bond_types)
+        # elif (stiffness_corrections is not None) and (bond_types is None):
+        #     self.bond_force_kernel = self.program.bond_force2
+        #     self.stiffness_corrections_d = cl.Buffer(
+        #         self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+        #         hostbuf=stiffness_corrections)
+        #     # Placeholder buffers
+        #     bond_types = np.array([0], dtype=np.intc)
+        #     self.bond_types_d = cl.Buffer(
+        #         self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+        #         hostbuf=bond_types)
 
-        elif (stiffness_corrections is None) and (bond_types is not None):
-            self.bond_force_kernel = self.program.bond_force3
-            self.bond_types_d = cl.Buffer(
-                self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
-                hostbuf=bond_types)
-            # Placeholder buffers
-            stiffness_corrections = np.array([0], dtype=np.float64)
-            self.stiffness_corrections_d = cl.Buffer(
-                self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
-                hostbuf=stiffness_corrections)
+        # elif (stiffness_corrections is None) and (bond_types is not None):
+        #     self.bond_force_kernel = self.program.bond_force3
+        #     self.bond_types_d = cl.Buffer(
+        #         self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+        #         hostbuf=bond_types)
+        #     # Placeholder buffers
+        #     stiffness_corrections = np.array([0], dtype=np.float64)
+        #     self.stiffness_corrections_d = cl.Buffer(
+        #         self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+        #         hostbuf=stiffness_corrections)
 
-        elif ((stiffness_corrections is not None)
-              and (bond_types is not None)):
-            self.bond_force_kernel = self.program.bond_force4
-            self.stiffness_corrections_d = cl.Buffer(
-                self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
-                hostbuf=stiffness_corrections)
-            self.bond_types_d = cl.Buffer(
-                self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
-                hostbuf=bond_types)
+        # elif ((stiffness_corrections is not None)
+        #       and (bond_types is not None)):
+        #     self.bond_force_kernel = self.program.bond_force4
+        #     self.stiffness_corrections_d = cl.Buffer(
+        #         self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+        #         hostbuf=stiffness_corrections)
+        #     self.bond_types_d = cl.Buffer(
+        #         self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+        #         hostbuf=bond_types)
+
+        self.bond_force_kernel = self.program.bond_force5
+        self.bond_types_d = cl.Buffer(self.context,
+                                      mf.READ_ONLY | mf.COPY_HOST_PTR,
+                                      hostbuf=bond_types)
+        # Placeholder buffers
+        stiffness_corrections = np.array([0], dtype=np.float64)
+        self.stiffness_corrections_d = cl.Buffer(
+            self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+            hostbuf=stiffness_corrections)
 
         self.damage_kernel = self.program.damage
 
@@ -270,25 +280,29 @@ class Integrator(ABC):
         queue.finish()
 
     def _bond_force(
-            self, u_d, force_d, body_force_d, r0_d, vols_d, nlist_d,
+            self, u_d, force_d, body_force_d, bond_damage_d, r0_d, vols_d, nlist_d,
             force_bc_types_d, force_bc_values_d, stiffness_corrections_d,
             bond_types_d, regimes_d, plus_cs_d, local_mem_x, local_mem_y,
             local_mem_z, bond_stiffness_d, critical_stretch_d,
             force_bc_magnitude, nregimes):
         """Calculate the force due to bonds acting on each node."""
+
         queue = self.queue
+
         # Call kernel
         self.bond_force_kernel(
                 queue, (self.nnodes * self.max_neighbours,),
-                (self.max_neighbours,), u_d, force_d, body_force_d, r0_d,
+                (self.max_neighbours,), u_d, force_d, body_force_d, bond_damage_d, r0_d,
                 vols_d, nlist_d, force_bc_types_d, force_bc_values_d,
                 stiffness_corrections_d, bond_types_d, regimes_d, plus_cs_d,
                 local_mem_x, local_mem_y, local_mem_z, bond_stiffness_d,
                 critical_stretch_d, np.float64(force_bc_magnitude),
                 np.intc(nregimes))
+
         queue.finish()
 
-    def write(self, u, ud, udd, force, body_force, damage, nlist, n_neigh):
+    def write(self, u, ud, udd, force, body_force, damage, nlist, n_neigh,
+              bond_damage):
         """Copy the state variables from device memory to host memory."""
         queue = self.queue
         # Calculate the damage
@@ -303,7 +317,10 @@ class Integrator(ABC):
         cl.enqueue_copy(queue, body_force, self.body_force_d)
         cl.enqueue_copy(queue, nlist, self.nlist_d)
         cl.enqueue_copy(queue, n_neigh, self.n_neigh_d)
-        return (u, ud, udd, force, body_force, damage, nlist, n_neigh)
+        cl.enqueue_copy(queue, bond_damage, self.bond_damage_d)
+
+        return (u, ud, udd, force, body_force, damage, nlist, n_neigh,
+                bond_damage)
 
 
 class Euler(Integrator):
@@ -713,7 +730,7 @@ class VelocityVerletCL(Integrator):
             boundary conditions for the current time-step.
         """
         self._bond_force(
-            self.u_d, self.force_d, self.body_force_d, self.r0_d, self.vols_d,
+            self.u_d, self.force_d, self.body_force_d, self.bond_damage_d, self.r0_d, self.vols_d,
             self.nlist_d, self.force_bc_types_d, self.force_bc_values_d,
             self.stiffness_corrections_d, self.bond_types_d, self.regimes_d,
             self.plus_cs_d, self.local_mem_x, self.local_mem_y,

@@ -1257,7 +1257,7 @@ class Model(object):
                  regimes=None, critical_stretch=None, bond_stiffness=None,
                  displacement_bc_magnitudes=None, force_bc_magnitudes=None,
                  first_step=1, write_path_mesh=None, write_path_data=None,
-                 write_mesh=None, write_data=None):
+                 write_mesh=None, write_data=None, bond_damage=None):
         """
         Simulate the peridynamics model.
 
@@ -1352,8 +1352,10 @@ class Model(object):
                 body_force,
                 damage,
                 nlist,
-                n_neigh) = self.integrator.write(
-                    u, ud, udd, body_force, force, damage, nlist, n_neigh)
+                n_neigh,
+                bond_damage) = self.integrator.write(u, ud, udd, body_force,
+                                                      force, damage, nlist,
+                                                      n_neigh, bond_damage)
             if write_mesh:
                 if step % write_mesh == 0:
                     self.write_mesh(
@@ -1406,6 +1408,7 @@ class Model(object):
                     data[tip_type_str]['displacement'] /= ntip
                     data[tip_type_str]['velocity'] /= ntip
                     data[tip_type_str]['acceleration'] /= ntip
+
         (u,
          ud,
          udd,
@@ -1413,8 +1416,10 @@ class Model(object):
          body_force,
          damage,
          nlist,
-         n_neigh) = self.integrator.write(
-             u, ud, udd, force, body_force, damage, nlist, n_neigh)
+         n_neigh,
+         bond_damage) = self.integrator.write(u, ud, udd, body_force, force,
+                                              damage, nlist, n_neigh,
+                                              bond_damage)
 
         return (u, damage, (nlist, n_neigh), force, ud, data)
 
