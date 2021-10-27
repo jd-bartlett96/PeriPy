@@ -31,7 +31,7 @@ def damage(int[:] n_neigh, int[:] family):
     return result
 
 
-def bond_force(double[:, :] r, double[:, :] r0, int[:, :] nlist,
+def node_force(double[:, :] r, double[:, :] r0, int[:, :] nlist,
                int[:] n_neigh, double[:] volume, double bond_stiffness,
                double[:, :] force_bc_values, int[:, :] force_bc_types,
                double force_bc_scale):

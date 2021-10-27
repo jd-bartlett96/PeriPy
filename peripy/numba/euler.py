@@ -1,20 +1,24 @@
-import numpy as np
-from numba import njit, prange
+from numba import njit
 
-# @njit(nogil=True, parallel=True)  # TODO: why no jit compile... vectorised?
+@njit(nogil=True, parallel=True)
 def update_displacement(
-        nodal_force, nodal_displacement, nodal_velocity,
-        density, bc_type, bc_values, bc_scale, DT):
-    damping = 2.5e6
-    nodal_acceleration = (nodal_force - damping * nodal_velocity) / density
-    index = np.where(bc_type[:, 1] == 1)  # TODO: fix this TODO shouldn't need this if boundary conditions are prescribed.
-    nodal_acceleration[index, 2] = 0
-    # nodal_acceleration[bc_type == 1] = 0  # Apply boundary conditions - constraints
-    nodal_velocity_forward = nodal_velocity + (nodal_acceleration * DT)
-    nodal_displacement_DT = nodal_velocity_forward * DT
-    nodal_displacement_forward = nodal_displacement + nodal_displacement_DT
-    nodal_displacement_forward[bc_values != 0] = 0  # Apply boundary conditions - applied displacements #TODO this isn't general
-    nodal_displacement_forward = (nodal_displacement_forward +
-                                  (bc_scale * bc_values))
-    return nodal_displacement_forward, nodal_velocity_forward
-
+        force, u, bc_indices, bc_values, bc_scale, dt):
+    """
+    Calculate the displacement of each node using an Euler
+    integrator.
+    :arg force: An (n,3) array of the forces of each node.
+    :type force:
+    :arg u: An (n,3) array of the current displacements of each node.
+    :type u:
+    :arg bc_types: An (n,3) array of the boundary condition types.
+    :type bc_types:
+    :arg bc_values: An (n,3) array of the boundary condition values applied to
+        the nodes.
+    :type bc_values:
+    :arg bc_scale: The scalar value applied to the displacement BCs.
+    :type bc_scale:
+    :arg dt: The time step in [s].
+    """
+    u = u + dt * force
+    u[bc_indices] = bc_scale * bc_values[bc_indices]
+    return u
