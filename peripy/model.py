@@ -487,10 +487,6 @@ class Model(object):
             :class:`numpy.ndarray` or list of lists containing
             coordinates of nodes.
         :type mesh_file: str or :class:`numpy.ndarray` or list
-<<<<<<< HEAD
-=======
-
->>>>>>> feature/coordinates_meshless
         :returns: None
         :rtype: NoneType
         """
@@ -1329,15 +1325,15 @@ class Model(object):
                 force_bc_magnitudes[step - 1])
 
             if (write_mesh and step % write_mesh == 0) or (
-                write_data and step % write_data == 0):
+                    write_data and step % write_data == 0):
                 (u,
-                ud,
-                udd,
-                force,
-                body_force,
-                damage,
-                nlist,
-                n_neigh) = self.integrator.write(
+                 ud,
+                 udd,
+                 force,
+                 body_force,
+                 damage,
+                 nlist,
+                 n_neigh) = self.integrator.write(
                     u, ud, udd, body_force, force, damage, nlist, n_neigh)
             if write_mesh:
                 if step % write_mesh == 0:
@@ -1590,7 +1586,7 @@ class Model(object):
                 'body_force': np.zeros(nwrites, dtype=np.float64),
                 'damage_sum': np.zeros(nwrites, dtype=np.float64)
                 }
-            for tip_type, _ in self.tip_types.items(): 
+            for tip_type, _ in self.tip_types.items():
                 if tip_type not in data:
                     # Build data dict for this tip type
                     data[tip_type] = {
