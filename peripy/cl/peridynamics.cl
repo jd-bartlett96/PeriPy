@@ -613,6 +613,7 @@ __kernel void
      * critical_stretch - The critical stretch, at and above which bonds will be broken.
      * fc_scale - scale factor appied to the force bondary conditions.
      * nregimes - Total number of regimes in the damage model. */
+
     // global_id is the bond number
     const int global_id = get_global_id(0);
     // local_id is the LOCAL node id in range [0, max_neigh] of a node in this parent node's family
@@ -634,9 +635,6 @@ __kernel void
     double denominator = 1 - exp(-k);
     double residual;
     double tmp_bond_damage = 0;
-
-    // Find bond type, which chooses the damage model
-    const int bond_type = bond_types[global_id];
 
     // Undeformed bond - x,y,z component
     const double xi_x = r0[3 * node_id_j + 0] - r0[3 * node_id_i + 0];
@@ -665,6 +663,7 @@ __kernel void
         tmp_bond_damage = 1;
     }
 
+    // TODO: reduce time spent reading and writing to memory
     if (tmp_bond_damage > bond_damage[global_id]){  // Bond damage can only increase
         bond_damage[global_id] = tmp_bond_damage;
     }
@@ -675,9 +674,6 @@ __kernel void
     const double cz = xi_eta_z / y;
 
     const double f = s * (1 - bond_damage[global_id]) * 2.32E18 * vols[node_id_j];
-
-    // printf("%d \n", global_id);
-    // printf("%f \n", s);
     
     // Copy bond forces into local memory
     local_cache_x[local_id] = f * cx;
@@ -702,10 +698,12 @@ __kernel void
         double const force_x = local_cache_x[0];
         double const force_y = local_cache_y[0];
         double const force_z = local_cache_z[0];
+
         // Update body forces in each direction
         body_force[3 * node_id_i + 0] = force_x;
         body_force[3 * node_id_i + 1] = force_y;
         body_force[3 * node_id_i + 2] = force_z;
+
         // Update forces in each direction
         force[3 * node_id_i + 0] = (fc_types[3 * node_id_i + 0] == 0 ? force_x : (force_x + fc_scale * fc_values[3 * node_id_i + 0]));
         force[3 * node_id_i + 1] = (fc_types[3 * node_id_i + 1] == 0 ? force_y : (force_y + fc_scale * fc_values[3 * node_id_i + 1]));
