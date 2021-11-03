@@ -16,7 +16,7 @@ from pstats import SortKey, Stats
 from matplotlib import pyplot as plt
 
 
-mesh_def = np.linspace(start=0, stop=1, num=10)
+mesh_def = np.linspace(start=0, stop=1, num=1000)
 total_volume = max(mesh_def)
 
 
@@ -80,7 +80,7 @@ def main():
     # bond, using Silling's (2005) derivation for the prototype microelastic
     # brittle (PMB) material model.
     # An arbritrary value of the critical_stretch = 0.005m is used.
-    horizon = 0.125
+    horizon = 0.025
     bond_stiffness = 18.00 * 0.05 / (np.pi * horizon**4)
     # The :class:`peripy.model.Model` defines and calculates the
     # connectivity of the model, as well as the boundary conditions and crack.
@@ -118,7 +118,10 @@ def main():
         stats.print_stats(.05)
         print(s.getvalue())
     
-    plt.scatter(mesh_def, u)
+    plt.plot(mesh_def, u)
+    plt.xlabel('Coordinate along rod.')
+    plt.ylabel('Displacement parallel to rod')
+    plt.title('Position-displacement plot for 1D example with random Gaussian forces.')
     plt.show()
     
 
