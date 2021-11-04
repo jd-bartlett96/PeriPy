@@ -576,17 +576,17 @@ __kernel void
 	__global int* nlist,
     __global int const* fc_types,
     __global double const* fc_values,
-    __global double const* stiffness_corrections,
-    __global int const* bond_types,
-    __global int* regimes,
-    __global double const* plus_cs,
+    __global double const* stiffness_corrections,  // delete
+    __global int const* bond_types,                // delete
+    __global int* regimes,                         // delete
+    __global double const* plus_cs,                // delete
     __local double* local_cache_x,
     __local double* local_cache_y,
     __local double* local_cache_z,
-    __global double* critical_stretch,
+    __global double* critical_stretch,             // delete
     double bond_stiffness,
     double fc_scale,
-    int nregimes
+    int nregimes                                   // delete
 	) {
     /* Calculate the force due to bonds on each node.
      *
@@ -674,7 +674,7 @@ __kernel void
     const double cz = xi_eta_z / y;
 
     const double f = s * (1 - bond_damage[global_id]) * 2.32E18 * vols[node_id_j];
-    
+
     // Copy bond forces into local memory
     local_cache_x[local_id] = f * cx;
     local_cache_y[local_id] = f * cy;
