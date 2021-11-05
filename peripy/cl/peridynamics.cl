@@ -3,6 +3,7 @@
 
 #ifdef BOND_DAMAGE_PMB
 
+# ifdef BOND_TYPES
 void bond_damage_PMB(
     double stretch,
     double critical_stretch,
@@ -20,6 +21,27 @@ void bond_damage_PMB(
     }
     return damage
 }
+# else
+
+void bond_damage_PMB_composite(
+    __global int* bond_types,
+    double stretch,
+    double critical_stretch,
+    __global int* nlist,
+    int const global_id
+)
+{
+    if (stretch < critical_stretch[bond_types[global_id]]) {
+        double damage = 0.0;
+    }
+    else {
+        // break bond
+        nlist[global_id] = -1;
+        double damage = 1.0;
+    }
+    return damage
+}
+# endif
 
 #elif BOND_DAMAGE_BILINEAR
 
@@ -179,15 +201,35 @@ __kernel void
         // Apply the damage law
         // Note that ifdef checks for macro's existence, whereas elif checks for macro's value
         #ifdef BOND_DAMAGE_PMB
-            bond_damage_PMB(bond_damage, nlist, stretch, critical_stretch);
+        # ifdef BOND_TYPES
+        bond_damage_PMB_composite(bond_types, bond_damage, nlist, stretch, critical_stretch);
+        # else
+        bond_damage_PMB(bond_damage, nlist, stretch, critical_stretch);
+        # endif
         #elif BOND_DAMAGE_BILINEAR
-            bond_damage_bilinear(bond_damage, nlist, stretch, critical_stretch, plus_cs);
+        # ifdef BOND_TYPES
+        bond_damage_bilinear_composite(bond_types, bond_damage, nlist, stretch, critical_stretch, plus_cs);
+        # else
+        bond_damage_bilinear(bond_damage, nlist, stretch, critical_stretch, plus_cs);
+        # endif
         #elif BOND_DAMAGE_TRILINEAR
-            bond_damage_trilinear(bond_damage, nlist, stretch, critical_stretch, plus_cs);
+        # ifdef BOND_TYPES
+        bond_damage_trilinear_composite(bond_types, bond_damage, nlist, stretch, critical_stretch, plus_cs);
+        # else
+        bond_damage_trilinear(bond_damage, nlist, stretch, critical_stretch, plus_cs);
+        # endif
         #elif BOND_DAMAGE_EXPONENTIAL
-            bond_damage_exponential(bond_damage, nlist, stretch, critical_stretch, plus_cs);
+        # ifdef BOND_TYPES
+        bond_damage_exponential_composite(bond_types, bond_damage, nlist, stretch, critical_stretch, plus_cs);
+        # else
+        bond_damage_exponential(bond_damage, nlist, stretch, critical_stretch, plus_cs);
+        # endif
         #elif BOND_DAMAGE_SIGMOID
-            bond_damage_sigmoid(bond_damage, stretch, critical_stretch);
+        # ifdef BOND_TYPES
+        bond_damage_sigmoid_composite(bond_types, bond_damage, stretch, critical_stretch);
+        # else
+        bond_damage_sigmoid(bond_damage, stretch, critical_stretch);
+        # endif
         #endif
 
         const double cx = xi_eta_x / y;
@@ -195,9 +237,17 @@ __kernel void
 		const double cz = xi_eta_z / y;
 
         #ifdef STIFFNESS_CORRECTIONS
-            const double f = stretch * bond_damage[global_id] * bond_stiffness * stiffness_corrections[global_id] * vols[node_id_j];
+        #ifdef BOND_TYPES
+            const double f = stretch * bond_damage[global_id] * bond_stiffness[bond_type] * stiffness_corrections[global_id] * vols[node_id_j];
         #else
+            const double f = stretch * bond_damage[global_id] * bond_stiffness * stiffness_corrections[global_id] * vols[node_id_j];
+        #endif
+        #else
+        #ifdef BOND_TYPES
             const double f = stretch * bond_damage[global_id] * bond_stiffness * vols[node_id_j];
+        #else
+            const double f = stretch * bond_damage[global_id] * bond_stiffness[bond_type] * stiffness_corrections[global_id] * vols[node_id_j];
+        #endif
         #endif
 
         // Copy bond forces into local memory

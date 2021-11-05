@@ -359,23 +359,6 @@ class Model(object):
         self.initial_connectivity = (nlist, n_neigh)
         self.degrees_freedom = 3
 
-        # TODO: should the bondlist be built within the class? Not possible 
-        # because the integrator has to be defined before the model (input 
-        # file) is built. Might be possible if we build the bondlist in the 
-        # integrator.build method
-
-        # Some bonds have been broken between the creation of family, and the
-        # creation of the crack. Therefore, these are not in nlist.
-        #time0 = time.time()
-        self.bondlist = self._build_bondlist3(nlist)
-        #time1 = time.time()
-        #bondlist = self._build_bondlist3(nlist)
-        #time2 = time.time()
-        #print(bondlist[:10])
-        #print(self.bondlist[:10])
-        #assert 0
-        self.bond_length = self._calculate_bond_length()
-
         # Calculate stiffness corrections if None is provided
         if stiffness_corrections is None:
             stiffness_correction_factors_are_applied = False
@@ -501,14 +484,11 @@ class Model(object):
          self.ntips) = self._set_boundary_conditions(
             is_displacement_boundary, is_force_boundary, is_tip)
 
-        # TODO: connectivity is independent, so they should be in build
-        # Build the integrator
         self.integrator.build(
             self.nnodes, self.degrees_freedom, self.max_neighbours,
             self.coords, self.volume, self.family, self.bc_types,
             self.bc_values, self.force_bc_types, self.force_bc_values,
             self.stiffness_corrections, self.bond_types, self.densities)
-            # self.bondlist, self.bond_length)
 
     def _read_mesh(self, filename):
         """
@@ -609,7 +589,72 @@ class Model(object):
         :rtype: tuple(:class:`numpy.ndarray`, :class:`numpy.ndarray`,
                       :class:`numpy.ndarray`, int)
         """
+        tree = neighbors.KDTree(coords, leaf_size=160)
+        neighbour_list = tree.query_radius(coords, r=horizon)
 
+        # Remove identity values, as there is no bond between a node and itself
+        neighbour_list = [neighbour_list[i][neighbour_list[i] != i]
+                          for i in range(nnodes)]
+
+        family = [len(neighbour_list[i]) for i in range(nnodes)]
+        family = np.array(family, dtype=np.intc)
+
+        if context:
+            max_neighbours = np.intc(1 << (int(family.max() - 1)).bit_length())
+            nlist = -1.*np.ones((nnodes, max_neighbours), dtype=np.intc)
+        else:
+            max_neighbours = family.max()
+            nlist = np.zeros((nnodes, max_neighbours), dtype=np.intc)
+        
+        for i in range(nnodes):
+            nlist[i][:family[i]] = neighbour_list[i]
+
+        nlist = nlist.astype(np.intc)
+        n_neigh = family.copy()
+
+        blist = [
+            [i,j] for i, nlist_i in enumerate(nlist)
+            for j in nlist_i if i < j]
+        blist = np.array(blist, dtype=np.intc)
+        nbonds = len(blist)
+
+        if initial_crack is not None:
+            if callable(initial_crack):
+                initial_crack = initial_crack(coords, nlist, n_neigh)
+
+            create_crack(np.array(initial_crack, dtype=np.int32),
+                         nlist, n_neigh)
+
+        return (family, nlist, blist, max_neighbours)
+
+    def _set_neighbour_listSS(self, coords, horizon, nnodes,
+                            initial_crack=None, context=None):
+        """
+        Build the connectivity and family using a neighbour list.
+
+        Determine the number of nodes within the horizon distance of each node,
+        and the neighbour list as a fixed length array. The crack, if it
+        exists, is also initiated here. This implementation makes use of
+        :meth:`sklearn.neighbors.KDTree`. In preliminary tests, the
+        time-expense optimal leaf_size=~160 for 10e5 < nnodes < 10e7.
+
+        :arg coords: The coordinates of all nodes.
+        :type coords: :class:`numpy.ndarray`
+        :arg float horizon: The horizon distance.
+        :arg int nnodes: The number of nodes.
+        :arg func initial_crack: The initial crack function, default is None.
+        :arg context: The OpenCL context with a single suitable device,
+            default is None.
+        :type context: :class:`pyopencl._cl.Context` or NoneType
+
+        :returns: An (nnodes,) array of the number of nodes
+            within the horizon of each node, the neighbour list as a fixed
+            length (nnodes, max_neighbours) array, an (nnodes,) array of the
+            number of neighbours of each node at the current time step and
+            max_neighbours, the number of columns in nlist.
+        :rtype: tuple(:class:`numpy.ndarray`, :class:`numpy.ndarray`,
+                      :class:`numpy.ndarray`, int)
+        """
         tree = neighbors.KDTree(coords, leaf_size=160)
         neighbour_list = tree.query_radius(coords, r=horizon)
 
@@ -641,45 +686,6 @@ class Model(object):
                          nlist, n_neigh)
 
         return (family, nlist, n_neigh, max_neighbours)
-
-    def _build_bondlist(self, nlist):
-        bondlist = []
-        for i, nlist_i in enumerate(nlist):
-            bondlist.append([[i, j] for j in nlist_i if i < j])
-        bondlist = [val for sublist in bondlist for val in sublist]
-        bondlist = np.array(bondlist)
-        return bondlist
-
-    def _build_bondlist3(self, nlist):
-        bondlist = [[i,j] for i, nlist_i in enumerate(nlist) for j in nlist_i if i < j]
-        bondlist = np.array(bondlist)
-        return bondlist
-
-    def _build_bondlist2(self, nlist):
-        bondlist = np.zeros(
-            ((np.sum(self.family) / 2).astype(int), 2), dtype=np.int)
-        counter = 0
-        for kNode in range(self.nnodes):
-            for kFamily in range(len(nlist[kNode])):
-                family_member = nlist[kNode, kFamily]
-                if kNode < family_member:
-                    bondlist[counter] = [kNode, family_member]
-                    counter += 1
-        return bondlist
-
-    def _calculate_bond_length(self):
-
-        nBonds = len(self.bondlist)
-        bond_length = np.zeros(nBonds, dtype=np.float64)
-
-        for kBond, bond in enumerate(self.bondlist):
-            node_i = bond[0]
-            node_j = bond[1]
-
-            bond_length[kBond] = np.sum((self.coords[node_j, :]
-                                         - self.coords[node_i, :]) ** 2)
-
-        return np.sqrt(bond_length)
 
     def _set_volumes(self, volume_total):
         """
@@ -1392,7 +1398,7 @@ class Model(object):
                      n_neigh) = self.integrator.write(
                          u, ud, udd, body_force, force, damage, nlist, n_neigh)
 
-                    # self.write_mesh(write_path/f"U_{step}.vtk", damage, u)
+                    self.write_mesh(write_path/f"U_{step}.vtk", damage, u)
 
                     # Write index number
                     ii = step // write - (first_step - 1) // write - 1
@@ -1577,7 +1583,7 @@ class Model(object):
         else:
             raise TypeError("connectivity type is wrong (expected {} or"
                             " {}, got {})".format(
-                                    tuple, type(None), type(connectivity)))
+                                    tuple, type(None), type(connectivity)))       
         # Use the initial regimes of linear elastic (0 values) if none
         # is provided
         if regimes is None:

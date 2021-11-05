@@ -1,7 +1,6 @@
 """Integrators."""
 from abc import ABC, abstractmethod
 
-from numpy.lib.function_base import disp
 from .cl import double_fp_support, get_context, output_device_info
 from pyopencl import mem_flags as mf
 from .peridynamics import damage, node_force, update_displacement, break_bonds
@@ -9,12 +8,20 @@ import pyopencl as cl
 import pathlib
 import numpy as np
 from .numba import euler, euler_cromer
-from .numba.peridynamics import (
-    bond_softening_factor_sigmoid, numba_stretch,
-    bond_softening_factor_trilinear,
-    bond_softening_factor_exponential,
-    numba_node_force, numba_nodal_force,
-    numba_damage)  # Do we need a break_bonds or can this be deprecated?
+from .numba.peridynamics_nlist import (
+    numba_node_force_nlist,
+    # bond_length_nlist,
+    # numba_damage_nlistSS,
+    numba_damage_nlist)
+from .numba.peridynamics_blist import (
+    numba_node_force_blist,
+    numba_damage)
+from .numba.peridynamics_blist_v2 import (
+    bond_length_blist,
+    numba_bond_force,
+    numba_reduce_force,
+    bond_damage_PMB_2,
+    numba_stretch)
 
 
 class Integrator(ABC):
@@ -466,13 +473,19 @@ class Euler(Integrator):
                 self.nlist, self.n_neigh)
 
 
-class EulerNumba(Integrator):
+class EulerNumba_blist_unfused(Integrator):
     r"""
-    Euler integrator for numba.
+    TODO: This is closer to the orginal Numba implementation by MHobbs. The
+    functions here are not fused together. Question: is it faster?
+
+    Euler integrator for Numba.
 
     Python implementation of the Euler integrator compiled with the JIT
     compiler, numba. The Euler method is a first-order numerical integration
     method. The integration is given by,
+
+    The Euler method is a first-order numerical integration method. The
+    integration is given by,
 
     .. math::
         u(t + \delta t) = u(t) + \delta t f(t),
@@ -480,17 +493,14 @@ class EulerNumba(Integrator):
     where :math:`u(t)` is the displacement at time :math:`t`, :math:`f(t)` is
     the force density at time :math:`t`, :math:`\delta t` is the time step.
     """
-
     def __init__(self, dt):
         """
-        Create a :class:`EulerNumba` integrator object.
+        Create an :class:`EulerNumba` integrator object.
 
-        :arg float dt: The length of time (in seconds [s]) of one time-step.
-
-        :returns: A :class:`EulerNumba` object
+        :returns: An :class:`EulerNumba` object
         """
         self.dt = dt
-        self.context = None     # Not an OpenCL integrator
+        self.context = None  # Not an OpenCL integrator
 
     def __call__(self, displacement_bc_magnitude, force_bc_magnitude):
         """
@@ -501,15 +511,14 @@ class EulerNumba(Integrator):
         :arg float force_bc_magnitude: the magnitude applied to the force
             boundary conditions for the current time-step.
         """
-
-        # Calculate the force due to the bonds on each node
+        # Calculate the force due to bonds on each node
         self.force = self._node_force(
-            force_bc_magnitude, self.u, self.nlist, self.n_neigh)
+            force_bc_magnitude, self.u)
         # Conduct one integration step
         self._update_displacement(
             self.u, self.force, displacement_bc_magnitude)
 
-    def __SScall2__(self, displacement_bc_magnitude, force_bc_magnitude):
+    def __call__(self, displacement_bc_magnitude, force_bc_magnitude):
         """
         Conduct one iteration of the integrator.
 
@@ -518,54 +527,30 @@ class EulerNumba(Integrator):
         :arg float force_bc_magnitude: the magnitude applied to the force
             boundary conditions for the current time-step.
         """
-
-        # Update neighbour list and return the bond damage?
-        self._break_bonds(self.u, self.nlist, self.n_neigh)
-        # Calculate the force due to the bonds on each node
+        # Calculate the force due to bonds on each node
         self.force = self._node_force(
-            force_bc_magnitude, self.u, self.nlist, self.n_neigh)
+            force_bc_magnitude, self.u)
         # Conduct one integration step
-        # displacement bc magnitude updated every time step
         self._update_displacement(
             self.u, self.force, displacement_bc_magnitude)
 
-        # Update coordinates
-        deformed_coordinates = self.coords + self.u
-
-        # Calculate bond stretch
-        (deformed_X,
-         deformed_Y,
-         deformed_Z,
-         deformed_length,
-         stretch) = self._calculate_stretch(deformed_coordinates)
-
-        # Calculate bond softening factor
-        (self.bond_softening_factor,
-         self.flag_bsf) = self._calculate_bsf_trilinear(
-             stretch, self.s0, self.s1, self.sc)
-
-        # Calculate bond forces
-        (bond_force_X, bond_force_Y,
-        bond_force_Z) = self._bond_force(
-            self.bond_stiffness, stretch, self.volume, deformed_X,
-            deformed_Y, deformed_Z, deformed_length)
-
-        # Calculate nodal forces
-        nodal_forces = self._node_forces(
-            bond_force_X, bond_force_Y, bond_force_Z)
-
-        # Time integration
-        self.u, self.velocity = self._time_integration(
-            nodal_forces, displacement_bc_magnitude)
-
-        self.force = np.zeros((self.nnodes, 3))  # nodal_forces
-        self.body_force = nodal_forces  # TODO: what is this doing?
-
-    def create_buffers(self, nlist, n_neigh, bond_stiffness, critical_stretch,
-                       plus_cs, u, ud, udd, force, body_force, damage, regimes,
-                       nregimes, nbond_types):
+    def create_buffers(
+            self, nlist, n_neigh, bond_stiffness, critical_stretch, plus_cs,
+            u, ud, udd, force, body_force, damage, regimes, nregimes,
+            nbond_types):
         """
+        TODO: depricated n_neigh, nregimes, regimes
+
         Initiate arrays that are dependent on simulation parameters.
+        TODO: Note that nlist and n_neigh are dependent on the simulation, but
+        perhaps they shouldn't be.
+        nlist is dependent on the simulation if there is bond breakage during
+        the simulation.
+
+        TODO: 27/10/2021 depricated n_neigh
+        TODO: 27/10/2021 depricated plus_cs
+        TODO: nbond_types are not actually dependent
+            on the simulation parameters.
 
         Initiates arrays that are dependent on
         :meth:`peripy.model.Model.simulate` parameters. Since
@@ -573,119 +558,133 @@ class EulerNumba(Integrator):
         buffers to be created, just python objects that are used as arguments
         of the cython functions.
         """
-
+        # self.nbond_types = nbond_types I think this is independent of the simulation
         self.nlist = nlist
-        self.n_neigh = n_neigh
+        self.bond_stiffness = bond_stiffness
         self.critical_stretch = critical_stretch
         self.u = u
         self.ud = ud
         self.udd = udd
         self.force = force
         self.body_force = body_force
+        self._create_special_buffers()
 
-    def build(self, nnodes, degrees_freedom, max_neighbours, coords, volume,
-              family, bc_types, bc_values, force_bc_types, force_bc_values,
-              stiffness_corrections, bond_types, densities, bondlist,
-              bond_length):
+    def build(
+            self, nnodes, degrees_freedom, max_neighbours,
+            coords, volume, family, bc_types,
+            bc_values, force_bc_types, force_bc_values,
+            stiffness_corrections, bond_types, densities):
         """
+        TODO: depricated max_neighbours, include nbond_types here.
         Initiate integrator arrays.
 
-        Since :class:`EulerNumba` uses python and numba in place of OpenCL,
-        there are no OpenCL programs or buffers to be built/created. Instead,
-        this method inititates the arrays and variables that are independent of
-        :meth:`peripy.model.Model.simulate` parameters as python objects that 
-        are used as arguments of the python functions.
+        Since :class:`EulerNumba` uses Numba in place of OpenCL, there are no
+        OpenCL programs or buffers to be built/created. Instead, this method
+        instantiates the arrays and variables that are independent of
+        :meth:`peripy.model.Model.simulate` parameters as python
+        objects that are used as arguments of the python functions.
+        Also not that the Numba implementation makes use of a bond_list,
+        where the OpenCL implementation does not (this is due to the hierarchy
+        in the memory model of OpenCL).
         """
         self.nnodes = nnodes
         self.coords = coords
         self.family = family
         self.volume = volume
-        self.bc_types = bc_types
-        self.bc_indices = np.where(bc_types!=0)
+        self.bc_types = bc_types  # TODO not needed
         self.bc_values = bc_values
-        self.force_bc_types = force_bc_types
-        self.force_bc_types = np.where(force_bc_types!=0)
+        #print(bc_types)
+        #self.bc_indices = np.where(bc_types != 0)
+        #print(self.bc_indices)
+        # self.force_bc_types = force_bc_types  # TODO not needed
         self.force_bc_values = force_bc_values
+        self.force_bc_indices = np.where(force_bc_types != 0)
         self.densities = densities
-        self.bondlist = bondlist
-        self.bond_length = bond_length
-        self.global_size = len(bondlist)
-        self.bond_softening_factor = np.zeros(nbonds)
-        self.flag_bsf = np.zeros(nbonds)
-        self.velocity = np.zeros((nnodes,3))
-        self.density = 2346
+        self.stiffness_corrections = stiffness_corrections
+        # self.nbond_types = nbond_types  # TODO needed
+        self.degrees_freedom = degrees_freedom
 
     def _create_special_buffers(self):
-        """Create buffers programs that are special to the integrator."""
-        # There are none
+        """
+        Create buffers special to the EulerNumba integrator.
+
+        The Numba implementation uses a bond_list (a fixed 2D array of bonds)
+        where the OpenCL implementation uses nlist (a fixed, 2D array of
+        families).
+        """
+        # # Alternative implementation in Numba - can't be easily parallelized
+        ## since no lists in numba
+        # self.blist = bond_list(self.nlist, self.nnodes)
+        # self.nbonds = len(self.bond_list)
+        # self.bond_damage = np.zeros(self.nbonds)
+
+        # # Alternative implementation to test
+        # blist = []
+        # for i, nlist_i in enumerate(self.nlist):
+        #     blist.append([[i, j] for j in nlist_i if i < j])
+        # blist = [val for sublist in blist for val in sublist]
+        # self.blist = np.array(blist)
+
+        # Create bond list
+        self.blist = [
+            [i,j] for i, nlist_i in enumerate(self.nlist)
+            for j in nlist_i if i < j]
+        self.blist = np.array(self.blist, dtype=np.intc)
+        self.nbonds = len(self.blist)
+
+        # Alternative implementation in Numba
+        self.bond_length = np.empty(self.nbonds)
+        self.bond_damage = np.empty(self.nbonds)
+        self.bond_length = bond_length_blist(
+            self.nbonds, self.blist, self.coords, self.bond_length)
+        self.node_force = np.zeros(
+            (self.nnodes, self.degrees_freedom), dtype=np.float64)
 
     def _build_special(self):
-        """Build programs that are special to the integrator."""
+        """Build OpenCL kernels special to the integrator."""
         # There are none
 
-    def _node_force():
-        """Calculate bond force for __call__."""
-        # Update coordinates
-        deformed_coordinates = self.coords + self.u
+    def _node_force(self, force_bc_magnitude, u):
+        """Calculate the force due to bonds acting on each node."""
         # Calculate bond stretch
-        (deformed_X, deformed_Y, deformed_Z,
-        deformed_length, stretch) = calculate_stretch(
-             self.bondlist, deformed_coordinates, self.bond_length)
+        (deformed_coords_x,
+         deformed_coords_y,
+         deformed_coords_z,
+         deformed_length,
+         stretch) = numba_stretch(
+             self.nbonds, u, self.coords, self.blist, self.bond_length)
         # Calculate bond softening factor
-        (self.bond_softening_factor,
-         self.flag_bsf) = self._calculate_bsf_trilinear(
-             stretch, self.critical_stretch)
+        # TODO: In init, depending on initial conditions, I should assign the bond_damage
+        (self.bond_damage) = bond_damage_PMB_2(
+             self.nbonds, stretch, self.critical_stretch, self.bond_damage)
         # Calculate bond forces
-        (bond_force_X, bond_force_Y,
-        bond_force_Z) = self._bond_force(
-            self.bond_stiffness, stretch, self.volume, deformed_X,
-            deformed_Y, deformed_Z, deformed_length)
+        (bond_force_X, bond_force_Y, bond_force_Z) = numba_bond_force(
+            self.bond_stiffness, self.bond_damage, stretch, self.volume,
+            deformed_coords_x, deformed_coords_y, deformed_coords_z,
+            deformed_length)
         # Calculate nodal forces
-        nodal_forces = calculate_nodal_force(
-            self.nnodes, self.bondlist,
+        return numba_reduce_force(
+            self.node_force.copy(), self.blist, 
             bond_force_X, bond_force_Y, bond_force_Z)
 
-    def _bond_softening_factor_trilinear(self, stretch, critical_stretch):
-        self.bond_softening_factor = bond_softening_factor_trilinear(
-            self.global_size, stretch, critical_stretch[0],
-            critical_stretch[1], critical_stretch[2],
-            self.bond_softening_factor, beta=0.25)
-        return self.bond_softening_factor
+    def _update_displacement(self, u, force, displacement_bc_magnitude):
+        return euler.update_displacement(self.nnodes,
+            force, u, self.bc_types, self.bc_values,
+            displacement_bc_magnitude, self.dt)
 
-    def _bond_softening_factor_exponential(self, stretch, critical_stretch):
-        self.bond_softening_factor = bond_softening_factor_exponential(
-            self.global_size, stretch,
-            critical_stretch[0], critical_stretch[1],
-            self.bond_softening_factor, k=25, alpha=0.25)
-        return self.bond_softening_factor
-
-    def _bond_softening_factor_sigmoid(self, stretch, critical_stretch):
-        self.bond_softening_factor = bond_softening_factor_sigmoid(
-            self.global_size, stretch,
-            critical_stretch[0], critical_stretch[1],
-            self.bond_softening_factor)
-        return self.bond_softening_factor
-
-    def _update_displacement(self, nodal_force, bc_scale):
-        u, v = euler_cromer(
-            nodal_force, self.u, self.velocity, self.density, self.bc_types,
-            self.bc_values, bc_scale, self.dt)
-        return u, v
-
-    def _calculate_damage(self):
-        damage = numba_damage(
-            self.family, self.bondlist, 1 - self.bond_softening_factor)
-        return damage
+    def _damage(self, bond_damage):
+        """Calculate bond damage."""
+        return numba_damage(
+            self.nbonds, self.blist, self.nnodes, bond_damage, self.family)
 
     def write(self, damage, u, ud, udd, force, body_force, nlist, n_neigh):
         """Return the state variable arrays."""
-        damage = self._calculate_damage()
-        return (
-            self.u, self.ud, self.udd, self.force, self.body_force, damage,
-            self.nlist, self.n_neigh)
+        damage = self._damage(self.bond_damage)
+        return (self.u, self.ud, self.udd, self.force, self.body_force, damage,
+                self.nlist, 0)
 
-
-class EulerNumba(Integrator):
+  
+class EulerNumba_nlist(Integrator):
     r"""
     Euler integrator for Numba.
 
@@ -722,12 +721,150 @@ class EulerNumba(Integrator):
         """
         # Calculate the force due to bonds on each node
         self.force = self._node_force(
-            force_bc_magnitude, self.u, self.bondlist)
+            force_bc_magnitude, self.u)
         # Conduct one integration step
         self._update_displacement(
             self.u, self.force, displacement_bc_magnitude)
 
-    def __SScall2__(self, displacement_bc_magnitude, force_bc_magnitude):
+    def create_buffers(
+            self, nlist, n_neigh, bond_stiffness, critical_stretch, plus_cs,
+            u, ud, udd, force, body_force, damage, regimes, nregimes,
+            nbond_types):
+        """
+        TODO: depricated n_neigh, nregimes, regimes
+
+        Initiate arrays that are dependent on simulation parameters.
+        TODO: Note that nlist and n_neigh are dependent on the simulation, but
+        perhaps they shouldn't be.
+        nlist is dependent on the simulation if there is bond breakage during
+        the simulation.
+
+        TODO: 27/10/2021 depricated n_neigh
+        TODO: 27/10/2021 depricated plus_cs
+        TODO: nbond_types are not actually dependent
+            on the simulation parameters.
+
+        Initiates arrays that are dependent on
+        :meth:`peripy.model.Model.simulate` parameters. Since
+        :class:`Euler` uses cython in place of OpenCL, there are no
+        buffers to be created, just python objects that are used as arguments
+        of the cython functions.
+        """
+        # self.nbond_types = nbond_types I think this is independent of the simulation
+        self.nlist = nlist
+        self.bond_stiffness = bond_stiffness
+        self.critical_stretch = critical_stretch
+        self.u = u
+        self.ud = ud
+        self.udd = udd
+        self.force = force
+        self.body_force = body_force
+        self._create_special_buffers()
+
+    def build(
+            self, nnodes, degrees_freedom, max_neighbours,
+            coords, volume, family, bc_types,
+            bc_values, force_bc_types, force_bc_values,
+            stiffness_corrections, bond_types, densities):
+        """
+        TODO: depricated max_neighbours, include nbond_types here.
+        Initiate integrator arrays.
+
+        Since :class:`EulerNumba` uses Numba in place of OpenCL, there are no
+        OpenCL programs or buffers to be built/created. Instead, this method
+        instantiates the arrays and variables that are independent of
+        :meth:`peripy.model.Model.simulate` parameters as python
+        objects that are used as arguments of the python functions.
+        Also not that the Numba implementation makes use of a bond_list,
+        where the OpenCL implementation does not (this is due to the hierarchy
+        in the memory model of OpenCL).
+        """
+        self.nnodes = nnodes
+        self.coords = coords
+        self.family = family
+        self.volume = volume
+        self.bc_types = bc_types  # TODO not needed
+        self.bc_values = bc_values
+        #print(bc_types)
+        #self.bc_indices = np.where(bc_types != 0)
+        #print(self.bc_indices)
+        # self.force_bc_types = force_bc_types  # TODO not needed
+        self.force_bc_values = force_bc_values
+        self.force_bc_indices = np.where(force_bc_types != 0)
+        self.densities = densities
+        self.stiffness_corrections = stiffness_corrections
+        # self.nbond_types = nbond_types  # TODO needed
+        # self.degrees_freedom = degrees_freedom
+
+    def _create_special_buffers(self):
+        """
+        Create buffers special to the EulerNumba integrator.
+
+        The Numba implementation uses a bond_list (a fixed 2D array of bonds)
+        where the OpenCL implementation uses nlist (a fixed, 2D array of
+        families).
+        """
+        self.node_force = np.zeros(
+            (self.nnodes, self.degrees_freedom), dtype=np.float64)
+        self.bond_damage = np.zeros(
+            (self.nnodes, self.degrees_freedom), dtype=np.float64)
+
+    def _build_special(self):
+        """Build OpenCL kernels special to the integrator."""
+        # There are none
+
+    def _node_force(self, force_bc_magnitude, u):
+        """Calculate the force due to bonds acting on each node."""
+        return numba_node_force_nlist(
+            self.volume, self.bond_stiffness, self.critical_stretch,
+            self.bond_damage, self.nnodes, self.nlist, u, self.coords,
+            self.node_force.copy(), self.force_bc_values, self.force_bc_types,
+            force_bc_magnitude)
+
+    def _update_displacement(self, u, force, displacement_bc_magnitude):
+        return euler.update_displacement(self.nnodes,
+            force, u, self.bc_types, self.bc_values,
+            displacement_bc_magnitude, self.dt)
+
+    def _damage(self, bond_damage):
+        """Calculate bond damage."""
+        return numba_damage_nlist(
+            self.nnodes, bond_damage, self.max_neighbours, self.family)
+
+    def write(self, damage, u, ud, udd, force, body_force, nlist, n_neigh):
+        """Return the state variable arrays."""
+        damage = self._damage(self.bond_damage)
+        return (self.u, self.ud, self.udd, self.force, self.body_force, damage,
+                self.nlist, 0)
+
+
+class EulerNumba_blist(Integrator):
+    r"""
+    Euler integrator for Numba.
+
+    Python implementation of the Euler integrator compiled with the JIT
+    compiler, numba. The Euler method is a first-order numerical integration
+    method. The integration is given by,
+
+    The Euler method is a first-order numerical integration method. The
+    integration is given by,
+
+    .. math::
+        u(t + \delta t) = u(t) + \delta t f(t),
+
+    where :math:`u(t)` is the displacement at time :math:`t`, :math:`f(t)` is
+    the force density at time :math:`t`, :math:`\delta t` is the time step.
+    """
+    def __init__(self, dt):
+        """
+        Create an :class:`EulerNumba` integrator object.
+
+        :returns: An :class:`EulerNumba` object
+        """
+        self.dt = dt
+        self.context = None  # Not an OpenCL integrator
+
+    def __call__(self, displacement_bc_magnitude, force_bc_magnitude):
         """
         Conduct one iteration of the integrator.
 
@@ -736,41 +873,30 @@ class EulerNumba(Integrator):
         :arg float force_bc_magnitude: the magnitude applied to the force
             boundary conditions for the current time-step.
         """
-        # Update coordinates
-        deformed_coordinates = self.coords + self.u
-        # Calculate bond stretch
-        (deformed_X,
-         deformed_Y,
-         deformed_Z,
-         deformed_length,
-         stretch) = self._calculate_stretch(deformed_coordinates)
-        # Calculate bond softening factor
-        # TODO: In init, depending on initial conditions, I should assign the bond_softening_factor
-        (self.bond_softening_factor,
-         self.flag_bsf) = self._calculate_bond_softening_factor(
-             stretch, self.critical_stretch)
-        # Calculate bond forces
-        (bond_force_X, bond_force_Y,
-        bond_force_Z) = self._SSbond_force(
-            self.bond_stiffness, stretch, self.volume, deformed_X,
-            deformed_Y, deformed_Z, deformed_length)
-        # Calculate nodal forces
-        self.force = self._SSnode_force(
-            bond_force_X, bond_force_Y, bond_force_Z)
-        # Time integration
-        self.u, self.velocity = self._SStime_integration(
-            self.force, displacement_bc_magnitude)
+        # Calculate the force due to bonds on each node
+        self.force = self._node_force(
+            force_bc_magnitude, self.u)
+        # Conduct one integration step
+        self._update_displacement(
+            self.u, self.force, displacement_bc_magnitude)
 
     def create_buffers(
-            self, nlist, bond_stiffness, critical_stretch, plus_cs,
+            self, nlist, n_neigh, bond_stiffness, critical_stretch, plus_cs,
             u, ud, udd, force, body_force, damage, regimes, nregimes,
             nbond_types):
         """
+        TODO: depricated n_neigh, nregimes, regimes
+
         Initiate arrays that are dependent on simulation parameters.
         TODO: Note that nlist and n_neigh are dependent on the simulation, but
         perhaps they shouldn't be.
+        nlist is dependent on the simulation if there is bond breakage during
+        the simulation.
+
         TODO: 27/10/2021 depricated n_neigh
         TODO: 27/10/2021 depricated plus_cs
+        TODO: nbond_types are not actually dependent
+            on the simulation parameters.
 
         Initiates arrays that are dependent on
         :meth:`peripy.model.Model.simulate` parameters. Since
@@ -778,16 +904,8 @@ class EulerNumba(Integrator):
         buffers to be created, just python objects that are used as arguments
         of the cython functions.
         """
-        if nregimes != 1:
-            raise ValueError("n-linear damage model's are not supported by "
-                             "this integrator. Please supply just one "
-                             "bond_stiffness.")
-        if nbond_types != 1:
-            raise ValueError("n-material composite models are not supported by"
-                             " this integrator. Please supply just one "
-                             "material type and bond_stiffness.")
+        # self.nbond_types = nbond_types I think this is independent of the simulation
         self.nlist = nlist
-        self.n_neigh = n_neigh
         self.bond_stiffness = bond_stiffness
         self.critical_stretch = critical_stretch
         self.u = u
@@ -795,58 +913,100 @@ class EulerNumba(Integrator):
         self.udd = udd
         self.force = force
         self.body_force = body_force
+        self._create_special_buffers()
+
+    def build(
+            self, nnodes, degrees_freedom, max_neighbours,
+            coords, volume, family, bc_types,
+            bc_values, force_bc_types, force_bc_values,
+            stiffness_corrections, bond_types, densities):
+        """
+        TODO: depricated max_neighbours, include nbond_types here.
+        Initiate integrator arrays.
+
+        Since :class:`EulerNumba` uses Numba in place of OpenCL, there are no
+        OpenCL programs or buffers to be built/created. Instead, this method
+        instantiates the arrays and variables that are independent of
+        :meth:`peripy.model.Model.simulate` parameters as python
+        objects that are used as arguments of the python functions.
+        Also not that the Numba implementation makes use of a bond_list,
+        where the OpenCL implementation does not (this is due to the hierarchy
+        in the memory model of OpenCL).
+        """
+        self.nnodes = nnodes
+        self.coords = coords
+        self.family = family
+        self.volume = volume
+        self.bc_types = bc_types  # TODO not needed
+        self.bc_values = bc_values
+        #print(bc_types)
+        #self.bc_indices = np.where(bc_types != 0)
+        #print(self.bc_indices)
+        # self.force_bc_types = force_bc_types  # TODO not needed
+        self.force_bc_values = force_bc_values
+        self.force_bc_indices = np.where(force_bc_types != 0)
+        self.densities = densities
+        self.stiffness_corrections = stiffness_corrections
+        # self.nbond_types = nbond_types  # TODO needed
+
+    def _create_special_buffers(self):
+        """
+        Create buffers special to the EulerNumba integrator.
+
+        The Numba implementation uses a bond_list (a fixed 2D array of bonds)
+        where the OpenCL implementation uses nlist (a fixed, 2D array of
+        families).
+        """
+        # # Alternative implementation in Numba - can't be easily parallelized
+        ## since no lists in numba
+        # self.blist = bond_list(self.nlist, self.nnodes)
+        # self.nbonds = len(self.bond_list)
+        # self.bond_damage = np.zeros(self.nbonds)
+
+        # # Alternative implementation to test
+        # blist = []
+        # for i, nlist_i in enumerate(self.nlist):
+        #     blist.append([[i, j] for j in nlist_i if i < j])
+        # blist = [val for sublist in blist for val in sublist]
+        # self.blist = np.array(blist)
+
+        # Create bond list
+        self.blist = [
+            [i,j] for i, nlist_i in enumerate(self.nlist)
+            for j in nlist_i if i < j]
+        self.blist = np.array(self.blist, dtype=np.intc)
+        self.nbonds = len(self.blist)
+
+        # Alternative implementation in Numba
+        self.bond_damage = np.empty(self.nbonds)
+
+    def _build_special(self):
+        """Build OpenCL kernels special to the integrator."""
+        # There are none
 
     def _node_force(self, force_bc_magnitude, u):
         """Calculate the force due to bonds acting on each node."""
-        return numba_node_force(
-            self.coords+u, self.coords, self.bond_list,
+        return numba_node_force_blist(
             self.volume, self.bond_stiffness, self.critical_stretch,
-            self.force_bc_values, self.force_bc_types, force_bc_magnitude)
+            self.bond_damage, self.nbonds, self.blist, u, self.coords,
+            self.force,
+            self.force_bc_values, self.force_bc_indices, force_bc_magnitude)
 
     def _update_displacement(self, u, force, displacement_bc_magnitude):
-        return euler(
-            u, self.bc_values, self.bc_indices, force,
+        return euler.update_displacement(self.nnodes,
+            force, u, self.bc_types, self.bc_values,
             displacement_bc_magnitude, self.dt)
 
-    def _build_special(self):
-        """Build OpenCL kernels special to the Euler integrator.
-        TODO: is this where to initiate damage model?"""
-        kernel_source = open(
-            pathlib.Path(__file__).parent.absolute() /
-            "cl/euler.cl").read()
+    def _damage(self, bond_damage):
+        """Calculate bond damage."""
+        return numba_damage(
+            self.nbonds, self.blist, self.nnodes, bond_damage, self.family)
 
-        if self.densities is not None:
-            raise ValueError("densities are not supported by this "
-                             "integrator (expected {}, got {}). This "
-                             " integrator neglects inertial effects. Do not "
-                             "supply a density or is_density argument or, "
-                             "alternatively, use a dynamic integrator, "
-                             "such as EulerCromerCL.".format(
-                                 type(None),
-                                 type(self.densities)))
-
-        # Build kernels
-        self.euler = cl.Program(
-            self.context, kernel_source).build()
-        self.update_displacement_kernel = self.euler.update_displacement
-
-    def _create_special_buffers(self):
-        """Create buffers special to the Euler integrator."""
-        # There are none
-
-    def _update_displacement(
-            self, force_d, u_d, bc_types_d, bc_values_d,
-            displacement_bc_magnitude, dt):
-        """Update displacements."""
-        queue = self.queue
-        # Call kernel
-        self.update_displacement_kernel(
-                self.queue, (self.degrees_freedom * self.nnodes,), None,
-                force_d, u_d, bc_types_d, bc_values_d,
-                np.float64(displacement_bc_magnitude), np.float64(dt))
-        queue.finish()
-        return u_d
-
+    def write(self, damage, u, ud, udd, force, body_force, nlist, n_neigh):
+        """Return the state variable arrays."""
+        damage = self._damage(self.bond_damage)
+        return (self.u, self.ud, self.udd, self.force, self.body_force, damage,
+                self.nlist, 0)
 
 
 class EulerCL(Integrator):
