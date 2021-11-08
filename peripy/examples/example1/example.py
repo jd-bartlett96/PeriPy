@@ -12,7 +12,7 @@ import numpy as np
 import pathlib
 from peripy import Model
 from peripy.model import initial_crack_helper
-from peripy.integrators import EulerCL, Euler, EulerNumba_nlist, EulerNumba_blist, EulerNumba_blist_unfused, EulerJAX_blist, EulerJAX_nlist
+from peripy.integrators import EulerCL, Euler, EulerNumba_nlist, EulerNumba_blist, EulerNumba_blist_unfused
 from pstats import SortKey, Stats
 
 
