@@ -1,5 +1,7 @@
 import numpy as np
 from numba import njit, prange
+
+from peripy.numba.damage import bond_damage_trilinear
 # from .damage import bond_damage_PMB
 # TODO: Is math.sqrt faster than np.sqrt?
 # TODO: Initialising deformed_X, _Y, _Z every iteration is expensive: try having deformed_X as input arguments using .copy()
@@ -58,16 +60,17 @@ def numba_node_force_blist(
         xi = np.sqrt(xi_x**2 + xi_y**2 + xi_z**2)
         y = np.sqrt(xi_eta_x**2 + xi_eta_y**2 + xi_eta_z**2)
         stretch = (y - xi) / xi
-        bond_damage_tmp = bond_damage_PMB(
-            stretch, sc, bond_damage[global_id])
+        # bond_damage_tmp = bond_damage_PMB(
+        #     stretch, sc, bond_damage[global_id])
+        bond_damage_tmp = bond_damage_trilinear(stretch, 1.05e-4, 6.9e-4, 5.56e-3, bond_damage[global_id], 0.25)
         # bond_damage = bond_damage_sigmoid(
         #     global_size, stretch, sc, sigma, bond_damage)
         bond_damage[global_id] = bond_damage_tmp
         f = stretch * bond_stiffness * (
             1 - bond_damage_tmp) * volume[node_id_j]
-        f_x = f * xi_eta_x / y
-        f_y = f * xi_eta_y / y
-        f_z = f * xi_eta_z / y
+        f_x = f[0] * xi_eta_x / y
+        f_y = f[1] * xi_eta_y / y
+        f_z = f[2] * xi_eta_z / y
         node_force[node_id_i, 0] += f_x
         node_force[node_id_j, 0] -= f_x
         node_force[node_id_i, 1] += f_y
@@ -100,4 +103,19 @@ def numba_damage(global_size, blist, nnodes, bond_damage, family):
         if bond_damage[global_id] != 1.0:
             neighbors[node_id_i] += 1
     return 1 - neighbors / family
+
+# @njit
+# def numba_damage(family, nnodes, blist, bond_damage):
+
+#     unbroken_bonds = np.zeros(nnodes)
+
+#     for kBond, bond in enumerate(blist):
+#         node_i = bond[0]
+#         node_j = bond[1]
+
+#         unbroken_bonds[node_i] = unbroken_bonds[node_i] + bond_damage[kBond]
+#         unbroken_bonds[node_j] = unbroken_bonds[node_j] + bond_damage[kBond]
+
+#     damage = 1 - (unbroken_bonds / family)
+#     return damage
 

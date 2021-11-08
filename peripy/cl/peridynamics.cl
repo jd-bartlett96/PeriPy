@@ -326,7 +326,7 @@ __kernel void damage(
             local_cache[local_id] += local_cache[local_id + i];
         }
         // Wait for all threads to catch up
-        barrier(CLK_LOCAL_MEM_FENCE)
+        barrier(CLK_LOCAL_MEM_FENCE);
     }
     if (!local_id){
         // Get the reduced damages
