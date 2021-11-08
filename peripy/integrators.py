@@ -8,7 +8,6 @@ import pyopencl as cl
 import pathlib
 import numpy as np
 from .numba import euler, euler_cromer
-from .jax import jax_euler, jax_euler_cromer
 from .numba.peridynamics_nlist import (
     numba_node_force_nlist,
     # bond_length_nlist,
