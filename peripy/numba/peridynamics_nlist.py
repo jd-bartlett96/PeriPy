@@ -1,6 +1,7 @@
 import numpy as np
 from numba import njit, prange
-from .damage import bond_damage_PMB
+# from .damage import bond_damage_PMB moved function over from damage.py
+# to here to avoid issues with "Cannot determine Numba type of <class 'function'>"
 # TODO: Is math.sqrt faster than np.sqrt?
 # TODO: Initialising deformed_X, _Y, _Z every iteration is expensive
 # TODO: then have deformed_X as input arguments using .copy()
@@ -26,7 +27,7 @@ from .damage import bond_damage_PMB
 def numba_node_force_nlist(
         volume, bond_stiffness, sc, bond_damage,
         nnodes, nlist, u, r0, node_force, max_neigh,
-        force_bc_values, force_bc_types, force_bc_magnitude):
+        force_bc_values=None, force_bc_types=None, force_bc_magnitude=None):
     """
     The bond lengths are not precalculated. Seeing if paralellising this way,
     by merging all functions, which gets rid of overhead, is faster.
@@ -39,15 +40,15 @@ def numba_node_force_nlist(
             node_id_j = nlist[node_id_i, j]
             # If bond is not broken
             if (node_id_j != -1) and (node_id_i < node_id_j):
-                xi_x = r0[node_id_j, 0] - r0[node_id_i, 0]
+                xi_x = r0[node_id_j, 0] - r0[node_id_i, 0]              # initial separtion in each dirn
                 xi_y = r0[node_id_j, 1] - r0[node_id_i, 1]
                 xi_z = r0[node_id_j, 2] - r0[node_id_i, 2]
-                xi_eta_x = u[node_id_j, 0] - u[node_id_i, 0] + xi_x
+                xi_eta_x = u[node_id_j, 0] - u[node_id_i, 0] + xi_x     # final separation in each dirn
                 xi_eta_y = u[node_id_j, 1] - u[node_id_i, 1] + xi_y
                 xi_eta_z = u[node_id_j, 2] - u[node_id_i, 2] + xi_z
-                xi = np.sqrt(xi_x**2 + xi_y**2 + xi_z**2)
-                y = np.sqrt(xi_eta_x**2 + xi_eta_y**2 + xi_eta_z**2)
-                stretch = (y - xi) / xi
+                xi = np.sqrt(xi_x**2 + xi_y**2 + xi_z**2)               # absolute original separation - could this be done once and stored?
+                y = np.sqrt(xi_eta_x**2 + xi_eta_y**2 + xi_eta_z**2)    # absolute final separation
+                stretch = (y - xi) / xi                                 # absolute strain
                 # TODO: A way to switch out different damage laws might be with a lambda function or factory or kwarg
                 bond_damage[node_id_i, j] = bond_damage_PMB(
                     stretch, sc, bond_damage[node_id_i, j])
@@ -98,3 +99,33 @@ def numba_damage_nlist(nnodes, bond_damage, max_neigh, family):
         for j in range(max_neigh):
             damage[node_id_i] += bond_damage[node_id_i, j]
     return damage / family
+
+@njit
+def bond_damage_PMB(
+        stretch, sc, bond_damage):
+    """
+    Calculate the bond softening factors for the trilinear model.
+
+    Also known as ``bond damge'', the bond softening factors are applied to
+    satisfy the damage law.
+
+    :arg int global_size: The number of bonds.
+    :arg stretch:
+    :type stretch:
+    :arg float s0:
+    :arg float s1:
+    :arg float sc:
+    :arg bond_damage:
+    :type bond_damage:
+    :arg float beta:
+    """
+    # bond softening factors will not increase from 0 under linear elastic
+    # regime
+    if stretch < sc:
+        bond_damage_temp = 0.0
+    else:
+        bond_damage_temp = 1.0
+    # bond softening factor can only increase (damage is irreversible)
+    if bond_damage_temp > bond_damage:
+        bond_damage = bond_damage_temp
+    return bond_damage
