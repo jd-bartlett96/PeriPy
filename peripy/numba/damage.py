@@ -3,8 +3,10 @@
 TODO: also define damage laws for composite materials, here.
 """
 import numpy as np
+from numba import njit
 
 
+@njit
 def bond_damage_PMB(
         stretch, sc, bond_damage):
     """
@@ -35,6 +37,7 @@ def bond_damage_PMB(
     return bond_damage
 
 
+@njit
 def bond_damage_sigmoid(
         stretch, sc, sigma, bond_damage):
     """
@@ -48,6 +51,7 @@ def bond_damage_sigmoid(
     return bond_damage
 
 
+@njit
 def bond_damage_trilinear(
         stretch, s0, s1, sc, bond_damage, beta):
     """
@@ -69,6 +73,7 @@ def bond_damage_trilinear(
     eta = s1 / s0
     # bond softening factors will not increase from 0 under linear elastic
     # loading, stretch[bond] <= s0
+    bond_damage_temp = 0.0
     if (stretch > s0) and (stretch <= s1):
         bond_damage_temp = (
             1 - ((eta - beta) / (eta - 1) * (s0 / stretch))
@@ -78,13 +83,14 @@ def bond_damage_trilinear(
                 (s0 * beta / stretch)
                 * ((sc - stretch) / (sc - s1)))
     elif stretch > sc:
-        bond_damage_temp = 1
+        bond_damage_temp = 1.0
     # Bond softening factor can only increase (damage is irreversible)
     if bond_damage_temp > bond_damage:
         bond_damage = bond_damage_temp
     return bond_damage
 
 
+@njit
 def bond_damage_exponential(
         stretch, s0, sc, bond_damage, k, alpha):
     """

@@ -25,18 +25,18 @@ def bond_length_blist(global_size, blist, r0, l0):
 def reduction_blist(
         nnodes, blist, bond_force_X, bond_force_Y, bond_force_Z):
     node_force = np.zeros((nnodes, 3), dtype=np.float64)
-    for kBond, bond in enumerate(blist):
+    for k, bond in enumerate(blist):
         node_i = bond[0]
         node_j = bond[1]
         # x-component
-        node_force[node_i, 0] += bond_force_X[kBond]
-        node_force[node_j, 0] -= bond_force_X[kBond]
+        node_force[node_i, 0] += bond_force_X[k]
+        node_force[node_j, 0] -= bond_force_X[k]
         # y-component
-        node_force[node_i, 1] += bond_force_Y[kBond]
-        node_force[node_j, 1] -= bond_force_Y[kBond]
+        node_force[node_i, 1] += bond_force_Y[k]
+        node_force[node_j, 1] -= bond_force_Y[k]
         # z-component
-        node_force[node_i, 2] += bond_force_Z[kBond]
-        node_force[node_j, 2] -= bond_force_Z[kBond]
+        node_force[node_i, 2] += bond_force_Z[k]
+        node_force[node_j, 2] -= bond_force_Z[k]
     return node_force
 
 
@@ -48,9 +48,9 @@ def numba_stretch(global_size, blist, u, r0, l0):
     # deformed coordinates
     r = u + r0
     # containers for stretches in cartesian directions
-    xi_eta_x = np.zeros(global_size)
-    xi_eta_y = np.zeros(global_size)
-    xi_eta_z = np.zeros(global_size)
+    xi_eta_x = np.zeros(global_size, dtype=np.int64)
+    xi_eta_y = np.zeros(global_size, dtype=np.int64)
+    xi_eta_z = np.zeros(global_size, dtype=np.int64)
     # for each bond in blist
     for global_id in prange(global_size):
         node_id_i = blist[global_id, 0]
@@ -65,35 +65,36 @@ def numba_stretch(global_size, blist, u, r0, l0):
 @njit(nogil=True, parallel=True)
 def numba_bond_force(
         bond_stiffness, bond_damage, stretch, volume,
-        deformed_X, deformed_Y, deformed_Z, deformed_length):
+        xi_eta_x, xi_eta_y, xi_eta_z, l):
     bond_force_X = (bond_stiffness * (1 - bond_damage) * stretch
-                    * volume * (deformed_X / deformed_length))
+                    * volume * (xi_eta_x / l))
     bond_force_Y = (bond_stiffness * (1 - bond_damage) * stretch
-                    * volume * (deformed_Y / deformed_length))
+                    * volume * (xi_eta_y / l))
     bond_force_Z = (bond_stiffness * (1 - bond_damage) * stretch
-                    * volume * (deformed_Z / deformed_length))
+                    * volume * (xi_eta_z / l))
     return bond_force_X, bond_force_Y, bond_force_Z
 
 
 @njit
 def numba_reduce_force(
-    node_force, blist, bond_force_X, bond_force_Y, bond_force_Z):
-    for kBond, bond in enumerate(blist):
+    node_force, blist, bond_force_X, bond_force_Y, bond_force_Z,
+    force_bc_types, force_bc_values, force_bc_magnitude):
+    for k, bond in enumerate(blist):
         node_i = bond[0]
         node_j = bond[1]
         # x-component
-        node_force[node_i, 0] += bond_force_X[kBond]
-        node_force[node_j, 0] -= bond_force_X[kBond]
+        node_force[node_i, 0] += bond_force_X[k]
+        node_force[node_j, 0] -= bond_force_X[k]
         # y-component
-        node_force[node_i, 1] += bond_force_Y[kBond]
-        node_force[node_j, 1] -= bond_force_Y[kBond]
+        node_force[node_i, 1] += bond_force_Y[k]
+        node_force[node_j, 1] -= bond_force_Y[k]
         # z-component
-        node_force[node_i, 2] += bond_force_Z[kBond]
-        node_force[node_j, 2] -= bond_force_Z[kBond]
-        # Need to add boundary conditions
-    # Not sure if this is a good idea
-    # node_force[force_bc_indices] += force_bc_magnitude * force_bc_values[
-    #     force_bc_indices]
+        node_force[node_i, 2] += bond_force_Z[k]
+        node_force[node_j, 2] -= bond_force_Z[k]
+    # Neumann boundary conditions
+    node_force[:, 0] = np.where(force_bc_types[:, 0] == 0, node_force[:, 0], node_force[:, 0] + force_bc_magnitude * force_bc_values[:, 0])
+    node_force[:, 1] = np.where(force_bc_types[:, 1] == 0, node_force[:, 1], node_force[:, 1] + force_bc_magnitude * force_bc_values[:, 1])
+    node_force[:, 2] = np.where(force_bc_types[:, 2] == 0, node_force[:, 2], node_force[:, 2] + force_bc_magnitude * force_bc_values[:, 2])
     return node_force
 
 

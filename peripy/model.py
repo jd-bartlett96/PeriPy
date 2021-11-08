@@ -599,13 +599,9 @@ class Model(object):
         family = [len(neighbour_list[i]) for i in range(nnodes)]
         family = np.array(family, dtype=np.intc)
 
-        if context:
-            max_neighbours = np.intc(1 << (int(family.max() - 1)).bit_length())
-            nlist = -1.*np.ones((nnodes, max_neighbours), dtype=np.intc)
-        else:
-            max_neighbours = family.max()
-            nlist = np.zeros((nnodes, max_neighbours), dtype=np.intc)
-        
+        max_neighbours = np.intc(1 << (int(family.max() - 1)).bit_length())
+        nlist = -1.*np.ones((nnodes, max_neighbours), dtype=np.intc)
+ 
         for i in range(nnodes):
             nlist[i][:family[i]] = neighbour_list[i]
 
@@ -619,6 +615,7 @@ class Model(object):
         nbonds = len(blist)
 
         if initial_crack is not None:
+            # TODO: Need to change bond_list here
             if callable(initial_crack):
                 initial_crack = initial_crack(coords, nlist, n_neigh)
 

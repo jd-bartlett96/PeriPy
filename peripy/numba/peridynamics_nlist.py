@@ -6,20 +6,20 @@ from .damage import bond_damage_PMB
 # TODO: then have deformed_X as input arguments using .copy()
 
 
-# @njit(parallel=True)
-# def bond_length_nlist(nnodes, max_neigh, nlist, r0, l0):
-#     """
-#     Precalculate the bond lengths.
-#     """
-#     for node_id_i in prange(nnodes):
-#         for j in range(max_neigh):
-#             node_id_j = nlist[node_id_i, j]
-#             if node_id_j != -1:
-#                 xi_x = r0[node_id_j, 0] - r0[node_id_i, 0]
-#                 xi_y = r0[node_id_j, 1] - r0[node_id_i, 1]
-#                 xi_z = r0[node_id_j, 2] - r0[node_id_i, 2]
-#                 l0[node_id_i, node_id_j] = np.sqrt(xi_x**2 + xi_y**2 + xi_z**2)
-#     return l0
+@njit(parallel=True)
+def bond_length_nlist(nnodes, max_neigh, nlist, r0, l0):
+    """
+    Precalculate the bond lengths.
+    """
+    for node_id_i in prange(nnodes):
+        for j in range(max_neigh):
+            node_id_j = nlist[node_id_i, j]
+            if node_id_j != -1:
+                xi_x = r0[node_id_j, 0] - r0[node_id_i, 0]
+                xi_y = r0[node_id_j, 1] - r0[node_id_i, 1]
+                xi_z = r0[node_id_j, 2] - r0[node_id_i, 2]
+                l0[node_id_i, node_id_j] = np.sqrt(xi_x**2 + xi_y**2 + xi_z**2)
+    return l0
 
 
 @njit(parallel=True)
@@ -66,18 +66,11 @@ def numba_node_force_nlist(
                 node_force[node_id_j, 1] -= f_y
                 node_force[node_id_i, 2] += f_z
                 node_force[node_id_j, 2] -= f_z
-        # TODO: This might be a preferable way to apply BCs
-        # if force_bc_types[node_id_i, 0] != 0:
-        #     node_force[node_id_i, 0] += force_bc_magnitude * force_bc_values[
-        #         node_id_i, 0]
-        #     node_force[node_id_i, 1] += force_bc_magnitude * force_bc_values[
-        #         node_id_i, 1]
-        #     node_force[node_id_i, 2] += force_bc_magnitude * force_bc_values[
-        #         node_id_i, 2]
-    # TODO: Not sure if this is a good idea to apply BCs with fancy indexing
-    # node_force[force_bc_indices] += force_bc_magnitude * force_bc_values[
-    #     force_bc_indices]
-    return node_force
+    # Neumann boundary conditions
+    node_force[:, 0] = np.where(force_bc_types[:, 0] == 0, node_force[:, 0], node_force[:, 0] + force_bc_magnitude * force_bc_values[:, 0])
+    node_force[:, 1] = np.where(force_bc_types[:, 1] == 0, node_force[:, 1], node_force[:, 1] + force_bc_magnitude * force_bc_values[:, 1])
+    node_force[:, 2] = np.where(force_bc_types[:, 2] == 0, node_force[:, 2], node_force[:, 2] + force_bc_magnitude * force_bc_values[:, 2])
+    return node_force, bond_damage
 
 
 @njit
