@@ -509,8 +509,8 @@ class Model(object):
             self.nnodes, self.degrees_freedom, self.max_neighbours,
             self.coords, self.volume, self.family, self.bc_types,
             self.bc_values, self.force_bc_types, self.force_bc_values,
-            self.stiffness_corrections, self.bond_types, self.densities)
-            # self.bondlist, self.bond_length)
+            self.stiffness_corrections, self.bond_types, self.densities,
+            self.bondlist, self.bond_length)
 
     def _read_mesh(self, filename):
         """

@@ -97,9 +97,9 @@ def main():
     #       Solver (integrator)
     # --------------------------------
 
-    integrator = VelocityVerletCL(dt=dt, damping=damping)
-    # integrator = EulerNumba(dt=dt, s0=s_0, s1=s_1, sc=s_c, c=c,
-    #                         cell_volume=cell_volume)
+    # integrator = VelocityVerletCL(dt=dt, damping=damping)
+    integrator = EulerNumba(dt=dt, s0=s_0, s1=s_1, sc=s_c, c=c,
+                             cell_volume=cell_volume)
 
     # --------------------------------
     #          Input file
