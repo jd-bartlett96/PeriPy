@@ -518,21 +518,6 @@ class EulerNumba_blist_unfused(Integrator):
         self._update_displacement(
             self.u, self.force, displacement_bc_magnitude)
 
-    def __call__(self, displacement_bc_magnitude, force_bc_magnitude):
-        """
-        Conduct one iteration of the integrator.
-
-        :arg float displacement_bc_magnitude: the magnitude applied to the
-             displacement boundary conditions for the current time-step.
-        :arg float force_bc_magnitude: the magnitude applied to the force
-            boundary conditions for the current time-step.
-        """
-        # Calculate the force due to bonds on each node
-        self.force = self._node_force(
-            force_bc_magnitude, self.u)
-        # Conduct one integration step
-        self._update_displacement(
-            self.u, self.force, displacement_bc_magnitude)
 
     def create_buffers(
             self, nlist, n_neigh, bond_stiffness, critical_stretch, plus_cs,
@@ -794,7 +779,8 @@ class EulerNumba_nlist(Integrator):
         self.densities = densities
         self.stiffness_corrections = stiffness_corrections
         # self.nbond_types = nbond_types  # TODO needed
-        # self.degrees_freedom = degrees_freedom
+        self.degrees_freedom = degrees_freedom
+        self.max_neighbours = max_neighbours
 
     def _create_special_buffers(self):
         """
@@ -818,8 +804,7 @@ class EulerNumba_nlist(Integrator):
         return numba_node_force_nlist(
             self.volume, self.bond_stiffness, self.critical_stretch,
             self.bond_damage, self.nnodes, self.nlist, u, self.coords,
-            self.node_force.copy(), self.force_bc_values, self.force_bc_types,
-            force_bc_magnitude)
+            self.node_force.copy(), self.max_neighbours)
 
     def _update_displacement(self, u, force, displacement_bc_magnitude):
         return euler.update_displacement(self.nnodes,
@@ -947,6 +932,7 @@ class EulerNumba_blist(Integrator):
         self.force_bc_indices = np.where(force_bc_types != 0)
         self.densities = densities
         self.stiffness_corrections = stiffness_corrections
+        self.max_neighbours = max_neighbours
         # self.nbond_types = nbond_types  # TODO needed
 
     def _create_special_buffers(self):
