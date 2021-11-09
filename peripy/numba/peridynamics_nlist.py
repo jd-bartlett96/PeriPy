@@ -1,6 +1,6 @@
 import numpy as np
 from numba import njit, prange
-from .damage import bond_damage_PMB
+from .damage import bond_damage_PMB, bond_damage_trilinear
 # TODO: Is math.sqrt faster than np.sqrt?
 # TODO: Initialising deformed_X, _Y, _Z every iteration is expensive
 # TODO: then have deformed_X as input arguments using .copy()
@@ -49,11 +49,16 @@ def numba_node_force_nlist(
                 y = np.sqrt(xi_eta_x**2 + xi_eta_y**2 + xi_eta_z**2)
                 stretch = (y - xi) / xi
                 # TODO: A way to switch out different damage laws might be with a lambda function or factory or kwarg
-                bond_damage[node_id_i, j] = bond_damage_PMB(
-                    stretch, sc, bond_damage[node_id_i, j])
-                # bond_damage = bond_damage_sigmoid(
-                #     global_size, stretch, sc, sigma, bond_damage)
-                f = stretch * bond_stiffness * (
+                # bond_damage[node_id_i, j] = bond_damage_PMB(
+                #     stretch, 1.05e-4, bond_damage[node_id_i, j])
+                s0 = 1.05e-4
+                s1 = 6.90e-4
+                sc = 5.56e-3
+                beta = 0.25
+                bond_damage[node_id_i, j] = bond_damage_trilinear(
+                    stretch, s0, s1, sc, bond_damage[node_id_i, j], beta)
+                # TODO: bond_stiffness should not be an array
+                f = stretch * bond_stiffness[0] * (
                     1 - bond_damage[node_id_i, j]) * volume[node_id_j]
                 f_x = f * xi_eta_x / y
                 f_y = f * xi_eta_y / y

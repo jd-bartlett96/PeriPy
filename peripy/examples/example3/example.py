@@ -41,7 +41,7 @@ import h5py
 import matplotlib.pyplot as plt
 
 from peripy import Model
-from peripy.integrators import VelocityVerletCL
+from peripy.integrators import VelocityVerletCL, EulerNumba_nlist, EulerNumba_blist
 from peripy.utilities import write_array
 from peripy.utilities import read_array as read_model
 
@@ -142,11 +142,11 @@ def is_displacement_boundary(x):
         bnd[2] = -1
     # Clamped particles
     if (x[0] > 0.025 - 5e-3) and (x[0] < 0.025 + 5e-3) and (x[2] < -0.005):
-        bnd[2] = 0
         bnd[1] = 0
+        bnd[2] = 0
     if (x[0] > 0.155 - 5e-3) and (x[0] < 0.155 + 5e-3) and (x[2] < -0.005):
-        bnd[2] = 0
         bnd[1] = 0
+        bnd[2] = 0
     return bnd
 
 
@@ -188,8 +188,9 @@ def main():
     # will help the system to converge to the quasi-static steady-state.
     damping = 2.5e6
     # Stable time step. Try increasing or decreasing it.
-    dt = 1.3e-6
-    integrator = VelocityVerletCL(dt=dt, damping=damping)
+    dt = 1.3e-15
+    # integrator = VelocityVerletCL(dt=dt, damping=damping)
+    integrator = EulerNumba_blist(dt=dt)
 
     # Try reading volume, density, family and connectivity arrays from
     # the file ./175beam3620_model.h5

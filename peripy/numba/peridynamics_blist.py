@@ -1,6 +1,6 @@
 import numpy as np
 from numba import njit, prange
-from .damage import bond_damage_PMB
+from .damage import bond_damage_PMB, bond_damage_trilinear
 # TODO: Is math.sqrt faster than np.sqrt?
 # TODO: Initialising deformed_X, _Y, _Z every iteration is expensive: try having deformed_X as input arguments using .copy()
 # TODO: compare with a neighbour list as opposed to bond list (for continuity with the GPU code).
@@ -59,11 +59,12 @@ def numba_node_force_blist(
         y = np.sqrt(xi_eta_x**2 + xi_eta_y**2 + xi_eta_z**2)
         stretch = (y - xi) / xi
         bond_damage_temp = bond_damage_PMB(
-            stretch, sc, bond_damage[global_id])
+            stretch, sc[0], bond_damage[global_id])
         # bond_damage = bond_damage_sigmoid(
         #     global_size, stretch, sc, sigma, bond_damage)
         bond_damage[global_id] = bond_damage_temp
-        f = stretch * bond_stiffness * (
+        # TODO: bond_stiffness should not be an array
+        f = stretch * bond_stiffness[0] * (
             1 - bond_damage_temp) * volume[node_id_j]
         f_x = f * xi_eta_x / y
         f_y = f * xi_eta_y / y
@@ -90,8 +91,8 @@ def numba_damage(global_size, blist, nnodes, bond_damage, family):
     for global_id in prange(global_size):
         node_id_i = blist[global_id, 0]
         damage[node_id_i] += bond_damage[global_id]
-    print(damage)
-    print(family)
+    # print(damage)
+    # print(family)
     return damage / family
 
 
@@ -103,7 +104,7 @@ def numba_damageSS(global_size, blist, nnodes, bond_damage, family):
         node_id_i = blist[global_id, 0]
         if bond_damage[global_id] != 1.0:
             neighbors[node_id_i] += 1
-    print(neighbors)
-    print(family)
+    # print(neighbors)
+    # print(family)
     return 1 - neighbors / family
 

@@ -108,7 +108,7 @@ def main():
 
     # The simulation will have 1000 time steps, and last
     # dt * steps = 1e-3 * 1000 = 1.0 seconds
-    steps = 1000
+    steps = 100000
 
     # The boundary condition magnitudes will be applied at a rate of
     # 2.5e-6 m per time-step, giving a total final displacement (the sum of the
@@ -121,7 +121,7 @@ def main():
     u, damage, *_ = model.simulate(
         steps=steps,
         displacement_bc_magnitudes=displacement_bc_array,
-        write_mesh=100)
+        write_mesh=1000)
 
     if args.profile:
         profile.disable()

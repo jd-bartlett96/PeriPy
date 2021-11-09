@@ -600,20 +600,9 @@ class Model(object):
         family = [len(neighbour_list[i]) for i in range(nnodes)]
         family = np.array(family, dtype=np.intc)
 
-<<<<<<< HEAD
         max_neighbours = np.intc(1 << (int(family.max() - 1)).bit_length())
         nlist = -1.*np.ones((nnodes, max_neighbours), dtype=np.intc)
  
-=======
-        if context:
-            max_neighbours = np.intc(
-                1 << (int(family.max() - 1)).bit_length())
-            nlist = -1.*np.ones((nnodes, max_neighbours),
-                                dtype=np.intc)
-        else:
-            max_neighbours = family.max()
-            nlist = np.zeros((nnodes, max_neighbours), dtype=np.intc)
->>>>>>> feature/example3
         for i in range(nnodes):
             nlist[i][:family[i]] = neighbour_list[i]
         nlist = nlist.astype(np.intc)
@@ -635,7 +624,6 @@ class Model(object):
                 nlist, n_neigh
                 )
 
-<<<<<<< HEAD
         return (family, nlist, blist, max_neighbours)
 
     def _set_neighbour_listSS(self, coords, horizon, nnodes,
@@ -696,8 +684,6 @@ class Model(object):
             create_crack(np.array(initial_crack, dtype=np.int32),
                          nlist, n_neigh)
 
-=======
->>>>>>> feature/example3
         return (family, nlist, n_neigh, max_neighbours)
 
     def _set_volumes(self, volume_total):
@@ -1396,25 +1382,6 @@ class Model(object):
                            desc="Simulation Progress", unit="steps"):
 
             # Call one integration step
-<<<<<<< HEAD
-            self.integrator(displacement_bc_magnitudes[step - 1],
-                            force_bc_magnitudes[step - 1])
-
-            if write:
-                if step % write == 0:
-                    (u,
-                     ud,
-                     udd,
-                     force,
-                     body_force,
-                     damage,
-                     nlist,
-                     n_neigh) = self.integrator.write(
-                         u, ud, udd, body_force, force, damage, nlist, n_neigh)
-
-                    self.write_mesh(write_path/f"U_{step}.vtk", damage, u)
-
-=======
             self.integrator(
                 displacement_bc_magnitudes[step - 1],
                 force_bc_magnitudes[step - 1])
@@ -1436,7 +1403,6 @@ class Model(object):
                         write_path_mesh/f"U_{step}.vtk", damage, u)
             if write_data:
                 if step % write_data == 0:
->>>>>>> feature/example3
                     # Write index number
                     ii = (
                         step // write_data

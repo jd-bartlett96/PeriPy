@@ -141,11 +141,7 @@ post_processing/
 
 # VSCode project settings
 .idea/
-<<<<<<< HEAD
 .vscode/
 
 # Scratch file
 scratch.py
-=======
-.vscode/
->>>>>>> feature/example3

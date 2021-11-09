@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 
 from .cl import double_fp_support, get_context, output_device_info
 from pyopencl import mem_flags as mf
-from .peridynamics import damage, node_force, update_displacement, break_bonds
+# from .peridynamics import damage, node_force, update_displacement, break_bonds
 import pyopencl as cl
 import pathlib
 import numpy as np
