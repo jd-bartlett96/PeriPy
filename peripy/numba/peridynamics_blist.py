@@ -46,7 +46,7 @@ def numba_node_force_blist(
     The bond lengths are not precalculated. Seeing if paralellising this way,
     by merging all functions, which gets rid of overhead, is faster.
     """
-    for global_id in prange(global_size):
+    for global_id in range(global_size):
         node_id_i = blist[global_id, 0]
         node_id_j = blist[global_id, 1]
         xi_x = r0[node_id_j, 0] - r0[node_id_i, 0]
@@ -58,17 +58,24 @@ def numba_node_force_blist(
         xi = np.sqrt(xi_x**2 + xi_y**2 + xi_z**2)
         y = np.sqrt(xi_eta_x**2 + xi_eta_y**2 + xi_eta_z**2)
         stretch = (y - xi) / xi
-        bond_damage_temp = bond_damage_PMB(
-            stretch, sc[0], bond_damage[global_id])
+        # bond_damage_temp = bond_damage_PMB(
+        #     stretch, sc[0], bond_damage[global_id])
         # bond_damage = bond_damage_sigmoid(
         #     global_size, stretch, sc, sigma, bond_damage)
-        bond_damage[global_id] = bond_damage_temp
+        s0 = 1.05e-4
+        s1 = 6.90e-4
+        sc = 5.56e-3
+        beta = 0.25
+        bond_damage[global_id] = bond_damage_trilinear(
+            stretch, s0, s1, sc, bond_damage[global_id], beta)
+        # bond_damage[global_id] = bond_damage_temp
         # TODO: bond_stiffness should not be an array
         f = stretch * bond_stiffness[0] * (
-            1 - bond_damage_temp) * volume[node_id_j]
+            1 - bond_damage[global_id]) * volume[node_id_j]
         f_x = f * xi_eta_x / y
         f_y = f * xi_eta_y / y
         f_z = f * xi_eta_z / y
+        # TODO: nodal forces can't be reduced in parallel
         node_force[node_id_i, 0] += f_x
         node_force[node_id_j, 0] -= f_x
         node_force[node_id_i, 1] += f_y

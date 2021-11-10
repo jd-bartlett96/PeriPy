@@ -285,7 +285,11 @@ def main():
         write_mesh=5000,  # write to mesh every 5000 time steps
         write_data=100)  # write to data every 100 time steps
 
-    force = np.array(data['force']['body_force']) / 1000
+    # TODO: why has this changed from data['force']['bodyforce'] to
+    # data['force']['force']. Need to be more explicit with naming.
+    # For example, nodal_force not force.
+    # force = np.array(data['force']['body_force']) / 1000
+    force = np.array(data['force']['force']) / 1000
     left_displacement = 1000. * np.array(data['CMOD_left']['displacement'])
     right_displacement = 1000. * np.array(data['CMOD_right']['displacement'])
     CMOD = np.subtract(right_displacement, left_displacement)
