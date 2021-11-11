@@ -100,6 +100,7 @@ def numba_node_force_blist(
     return node_force, bond_damage
 
 
+# TODO: double check this function
 @njit(parallel=True)
 def numba_damage(global_size, blist, nnodes, bond_damage, family):
     """
@@ -109,7 +110,7 @@ def numba_damage(global_size, blist, nnodes, bond_damage, family):
     for global_id in range(global_size):
         node_id_i = blist[global_id, 0]
         damage[node_id_i] += bond_damage[global_id]
-        
+
     return damage / family
 
 

@@ -190,7 +190,7 @@ def main():
     # Stable time step. Try increasing or decreasing it.
     dt = 1.3e-15
     # integrator = VelocityVerletCL(dt=dt, damping=damping)
-    integrator = EulerNumba_blist(dt=dt)
+    integrator = EulerNumba_nlist(dt=dt)
 
     # Try reading volume, density, family and connectivity arrays from
     # the file ./175beam3620_model.h5

@@ -857,11 +857,11 @@ class EulerNumba_blist(Integrator):
             boundary conditions for the current time-step.
         """
         # Calculate the force due to bonds on each node
-        self.force, self.bond_damage = self._node_force(
-            force_bc_magnitude, self.u)
+        self.force, self.bond_damage = self._node_force(force_bc_magnitude,
+                                                        self.u)
         # Conduct one integration step
-        self._update_displacement(
-            self.u, self.force, displacement_bc_magnitude)
+        self._update_displacement(self.u, self.force,
+                                  displacement_bc_magnitude)
 
     def create_buffers(
             self, nlist, n_neigh, bond_stiffness, critical_stretch, plus_cs,
@@ -968,8 +968,8 @@ class EulerNumba_blist(Integrator):
         return numba_node_force_blist(
             self.volume, self.bond_stiffness, self.critical_stretch,
             self.bond_damage, self.nbonds, self.blist, u, self.coords,
-            self.force,
-            self.force_bc_values, self.force_bc_types, force_bc_magnitude)
+            self.force, self.force_bc_values, self.force_bc_types, 
+            force_bc_magnitude)
 
     def _update_displacement(self, u, force, displacement_bc_magnitude):
         return euler.update_displacement(self.nnodes,
