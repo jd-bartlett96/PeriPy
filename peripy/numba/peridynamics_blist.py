@@ -46,7 +46,11 @@ def numba_node_force_blist(
     The bond lengths are not precalculated. Seeing if paralellising this way,
     by merging all functions, which gets rid of overhead, is faster.
     """
-    for global_id in range(global_size):
+    f_x = np.zeros(global_size)
+    f_y = np.zeros(global_size)
+    f_z = np.zeros(global_size)
+
+    for global_id in prange(global_size):
         node_id_i = blist[global_id, 0]
         node_id_j = blist[global_id, 1]
         xi_x = r0[node_id_j, 0] - r0[node_id_i, 0]
@@ -72,16 +76,23 @@ def numba_node_force_blist(
         # TODO: bond_stiffness should not be an array
         f = stretch * bond_stiffness[0] * (
             1 - bond_damage[global_id]) * volume[node_id_j]
-        f_x = f * xi_eta_x / y
-        f_y = f * xi_eta_y / y
-        f_z = f * xi_eta_z / y
-        # TODO: nodal forces can't be reduced in parallel
-        node_force[node_id_i, 0] += f_x
-        node_force[node_id_j, 0] -= f_x
-        node_force[node_id_i, 1] += f_y
-        node_force[node_id_j, 1] -= f_y
-        node_force[node_id_i, 2] += f_z
-        node_force[node_id_j, 2] -= f_z
+        f_x[global_id] = f * xi_eta_x / y
+        f_y[global_id] = f * xi_eta_y / y
+        f_z[global_id] = f * xi_eta_z / y
+
+    # TODO: nodal forces can't be reduced in parallel
+    for global_id in range(global_size):
+
+        node_id_i = blist[global_id, 0]
+        node_id_j = blist[global_id, 1]
+    
+        node_force[node_id_i, 0] += f_x[global_id]
+        node_force[node_id_j, 0] -= f_x[global_id]
+        node_force[node_id_i, 1] += f_y[global_id]
+        node_force[node_id_j, 1] -= f_y[global_id]
+        node_force[node_id_i, 2] += f_z[global_id]
+        node_force[node_id_j, 2] -= f_z[global_id]
+
     # Neumann boundary conditions
     node_force[:, 0] = np.where(force_bc_types[:, 0] == 0, node_force[:, 0], node_force[:, 0] + force_bc_magnitude * force_bc_values[:, 0])
     node_force[:, 1] = np.where(force_bc_types[:, 1] == 0, node_force[:, 1], node_force[:, 1] + force_bc_magnitude * force_bc_values[:, 1])
@@ -89,17 +100,16 @@ def numba_node_force_blist(
     return node_force, bond_damage
 
 
-#@njit
+@njit(parallel=True)
 def numba_damage(global_size, blist, nnodes, bond_damage, family):
     """
     Calculate the damage of each node.
     """
     damage = np.zeros(nnodes)
-    for global_id in prange(global_size):
+    for global_id in range(global_size):
         node_id_i = blist[global_id, 0]
         damage[node_id_i] += bond_damage[global_id]
-    # print(damage)
-    # print(family)
+        
     return damage / family
 
 
