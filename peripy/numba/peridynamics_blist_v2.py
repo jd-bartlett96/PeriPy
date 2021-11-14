@@ -62,20 +62,20 @@ def numba_stretch(global_size, blist, u, r0, l0):
     return xi_eta_x, xi_eta_y, xi_eta_z, y, (y - l0) / l0
 
 
-@njit(nogil=True, parallel=True)
+# @njit(nogil=True, parallel=True)
 def numba_bond_force(
         bond_stiffness, bond_damage, stretch, volume,
         xi_eta_x, xi_eta_y, xi_eta_z, l):
-    bond_force_X = (bond_stiffness * (1 - bond_damage) * stretch
+    bond_force_X = (bond_stiffness[0] * (1 - bond_damage) * stretch
                     * volume * (xi_eta_x / l))
-    bond_force_Y = (bond_stiffness * (1 - bond_damage) * stretch
+    bond_force_Y = (bond_stiffness[0] * (1 - bond_damage) * stretch
                     * volume * (xi_eta_y / l))
-    bond_force_Z = (bond_stiffness * (1 - bond_damage) * stretch
+    bond_force_Z = (bond_stiffness[0] * (1 - bond_damage) * stretch
                     * volume * (xi_eta_z / l))
     return bond_force_X, bond_force_Y, bond_force_Z
 
 
-@njit
+@njit(parallel=True)
 def numba_reduce_force(
     node_force, blist, bond_force_X, bond_force_Y, bond_force_Z,
     force_bc_types, force_bc_values, force_bc_magnitude):
@@ -99,74 +99,74 @@ def numba_reduce_force(
 
 
 @njit(parallel=True)
-def bond_damage_PMB_2(
-        global_size, stretch, sc, bond_damage):
-    """
-    Calculate the bond softening factors for the PMB model.
-    Also known as ``bond damge'', the bond softening factors are applied to
-    satisfy the damage law.
-    :arg int global_size: The number of bonds.
-    :arg stretch:
-    :type stretch:
-    :arg float sc:
-    :arg bond_damage:
-    :type bond_damage:
-    """
-    for bond in prange(global_size):
-        # Factor out indexing
-        stretch_bond = stretch[bond]
-        # bond softening factors will not increase from 0 under linear elastic
-        # loading, stretch[bond] <= s0
-        bond_damage_temp = 0.0
-        if stretch_bond < sc:
-            bond_damage_temp = 0.0
-        else:
-            bond_damage_temp = 1.0
-        # Bond softening factor can only increase (damage is irreversible)
-        if bond_damage_temp > bond_damage[bond]:
-            bond_damage[bond] = bond_damage_temp
-    return bond_damage
-
-
-# TODO: these may be useful later
-# @njit(parallel=True)
-# def bond_damage_trilinear_v2(
-#         global_size, stretch, s0, s1, sc,
-#         bond_damage, beta):
+# def bond_damage_PMB_2(
+#         global_size, stretch, sc, bond_damage):
 #     """
-#     Calculate the bond softening factors for the trilinear model.
+#     Calculate the bond softening factors for the PMB model.
 #     Also known as ``bond damge'', the bond softening factors are applied to
 #     satisfy the damage law.
 #     :arg int global_size: The number of bonds.
 #     :arg stretch:
 #     :type stretch:
-#     :arg float s0:
-#     :arg float s1:
 #     :arg float sc:
 #     :arg bond_damage:
 #     :type bond_damage:
-#     :arg float beta:
 #     """
-#     eta = s1 / s0
 #     for bond in prange(global_size):
 #         # Factor out indexing
 #         stretch_bond = stretch[bond]
 #         # bond softening factors will not increase from 0 under linear elastic
 #         # loading, stretch[bond] <= s0
-#         if (stretch_bond > s0) and (stretch_bond <= s1):
-#             bond_damage_temp = (
-#                 1 - ((eta - beta) / (eta - 1) * (s0 / stretch_bond))
-#                 + ((1 - beta) / (eta - 1)))
-#         elif (stretch_bond > s1) and (stretch_bond <= sc):
-#             bond_damage_temp = 1 - (
-#                     (s0 * beta / stretch_bond)
-#                     * ((sc - stretch_bond) / (sc - s1)))
-#         elif stretch_bond > sc:
-#             bond_damage_temp = 1
+#         bond_damage_temp = 0.0
+#         if stretch_bond < sc:
+#             bond_damage_temp = 0.0
+#         else:
+#             bond_damage_temp = 1.0
 #         # Bond softening factor can only increase (damage is irreversible)
 #         if bond_damage_temp > bond_damage[bond]:
 #             bond_damage[bond] = bond_damage_temp
 #     return bond_damage
+
+
+# TODO: these may be useful later
+# @njit(parallel=True)
+def bond_damage_trilinear_v2(
+        global_size, stretch, s0, s1, sc,
+        bond_damage, beta):
+    """
+    Calculate the bond softening factors for the trilinear model.
+    Also known as ``bond damge'', the bond softening factors are applied to
+    satisfy the damage law.
+    :arg int global_size: The number of bonds.
+    :arg stretch:
+    :type stretch:
+    :arg float s0:
+    :arg float s1:
+    :arg float sc:
+    :arg bond_damage:
+    :type bond_damage:
+    :arg float beta:
+    """
+    eta = s1 / s0
+    for bond in prange(global_size):
+        # Factor out indexing
+        stretch_bond = stretch[bond]
+        # bond softening factors will not increase from 0 under linear elastic
+        # loading, stretch[bond] <= s0
+        if (stretch_bond > s0) and (stretch_bond <= s1):
+            bond_damage_temp = (
+                1 - ((eta - beta) / (eta - 1) * (s0 / stretch_bond))
+                + ((1 - beta) / (eta - 1)))
+        elif (stretch_bond > s1) and (stretch_bond <= sc):
+            bond_damage_temp = 1 - (
+                    (s0 * beta / stretch_bond)
+                    * ((sc - stretch_bond) / (sc - s1)))
+        elif stretch_bond > sc:
+            bond_damage_temp = 1
+        # Bond softening factor can only increase (damage is irreversible)
+        if bond_damage_temp > bond_damage[bond]:
+            bond_damage[bond] = bond_damage_temp
+    return bond_damage
 
 
 # @njit

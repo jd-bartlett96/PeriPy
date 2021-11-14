@@ -20,7 +20,7 @@ from .numba.peridynamics_blist_v2 import (
     bond_length_blist,
     numba_bond_force,
     numba_reduce_force,
-    bond_damage_PMB_2,
+    bond_damage_trilinear_v2,
     numba_stretch)
 
 
@@ -639,8 +639,12 @@ class EulerNumba_blist_unfused(Integrator):
              self.nbonds, self.blist, u, self.coords, self.bond_length)
         # Calculate bond softening factor
         # TODO: In init, depending on initial conditions, I should assign the bond_damage
-        self.bond_damage = bond_damage_PMB_2(
-             self.nbonds, stretch, self.critical_stretch, self.bond_damage)
+        s0 = 1.05e-4
+        s1 = 6.90e-4
+        sc = 5.56e-3
+        beta = 0.25
+        self.bond_damage = bond_damage_trilinear_v2(
+             self.nbonds, stretch, s0, s1, sc, self.bond_damage, beta)
         # Calculate bond forces
         (bond_force_x, bond_force_y, bond_force_z) = numba_bond_force(
             self.bond_stiffness, self.bond_damage, stretch, self.volume_list,
@@ -968,8 +972,8 @@ class EulerNumba_blist(Integrator):
         return numba_node_force_blist(
             self.volume, self.bond_stiffness, self.critical_stretch,
             self.bond_damage, self.nbonds, self.blist, u, self.coords,
-            self.force, self.force_bc_values, self.force_bc_types, 
-            force_bc_magnitude)
+            self.force, self.force_bc_values, self.force_bc_types,
+            force_bc_magnitude, self.nnodes)
 
     def _update_displacement(self, u, force, displacement_bc_magnitude):
         return euler.update_displacement(self.nnodes,
