@@ -898,7 +898,7 @@ class EulerNumba_blist(Integrator):
         self.u = u
         self.ud = ud
         self.udd = udd
-        self.force = force
+        self.force = force  # TODO: delete
         self.body_force = body_force
         self._create_special_buffers()
 
@@ -921,6 +921,7 @@ class EulerNumba_blist(Integrator):
         in the memory model of OpenCL).
         """
         self.nnodes = nnodes
+        self.degrees_freedom = degrees_freedom
         self.coords = coords
         self.family = family
         self.volume = volume
@@ -963,6 +964,13 @@ class EulerNumba_blist(Integrator):
         # Alternative implementation in Numba
         self.bond_damage = np.zeros(self.nbonds)
 
+        self.f_x = np.zeros(self.nbonds)
+        self.f_y = np.zeros(self.nbonds)
+        self.f_z = np.zeros(self.nbonds)
+
+        self.node_force = np.zeros((self.nnodes, self.degrees_freedom),
+                                   dtype=np.float64)
+
     def _build_special(self):
         """Build OpenCL kernels special to the integrator."""
         # There are none
@@ -972,8 +980,8 @@ class EulerNumba_blist(Integrator):
         return numba_node_force_blist(
             self.volume, self.bond_stiffness, self.critical_stretch,
             self.bond_damage, self.nbonds, self.blist, u, self.coords,
-            self.force, self.force_bc_values, self.force_bc_types,
-            force_bc_magnitude, self.nnodes)
+            self.node_force.copy(), self.force_bc_values, self.force_bc_types,
+            force_bc_magnitude, self.f_x, self.f_y, self.f_z)
 
     def _update_displacement(self, u, force, displacement_bc_magnitude):
         return euler.update_displacement(self.nnodes,

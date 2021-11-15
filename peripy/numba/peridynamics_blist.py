@@ -41,15 +41,11 @@ from .damage import bond_damage_PMB, bond_damage_trilinear
 def numba_node_force_blist(
         volume, bond_stiffness, sc, bond_damage,
         global_size, blist, u, r0, node_force, force_bc_values,
-        force_bc_types, force_bc_magnitude, nnodes):
+        force_bc_types, force_bc_magnitude, f_x, f_y, f_z):
     """
     The bond lengths are not precalculated. Seeing if paralellising this way,
     by merging all functions, which gets rid of overhead, is faster.
     """
-    f_x = np.zeros(global_size)
-    f_y = np.zeros(global_size)
-    f_z = np.zeros(global_size)
-    node_force = np.zeros((nnodes, 3), dtype=np.float64)
 
     for global_id in prange(global_size):
         node_id_i = blist[global_id, 0]
@@ -73,7 +69,7 @@ def numba_node_force_blist(
         beta = 0.25
         bond_damage[global_id] = bond_damage_trilinear(
             stretch, s0, s1, sc, bond_damage[global_id], beta)
-        # bond_damage[global_id] = bond_damage_temp
+        
         # TODO: bond_stiffness should not be an array
         f = stretch * bond_stiffness[0] * (
             1 - bond_damage[global_id]) * volume[node_id_j]
