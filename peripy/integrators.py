@@ -710,11 +710,12 @@ class EulerNumba_nlist(Integrator):
             boundary conditions for the current time-step.
         """
         # Calculate the force due to bonds on each node
-        self.force, self.bond_damage = self._node_force(
-            force_bc_magnitude, self.u)
+        self.force, self.bond_damage = self._node_force(force_bc_magnitude)
         # Conduct one integration step
-        self._update_displacement(
-            self.u, self.force, displacement_bc_magnitude)
+        # self._update_displacement(
+        #     self.u, self.force, displacement_bc_magnitude)
+
+        self.u, self.ud = self._update_displacement(2.5E6, displacement_bc_magnitude)
 
     def create_buffers(
             self, nlist, n_neigh, bond_stiffness, critical_stretch, plus_cs,
@@ -800,18 +801,32 @@ class EulerNumba_nlist(Integrator):
         """Build OpenCL kernels special to the integrator."""
         # There are none
 
-    def _node_force(self, force_bc_magnitude, u):
+    def _node_force(self, force_bc_magnitude):
         """Calculate the force due to bonds acting on each node."""
         return numba_node_force_nlist(
             self.volume, self.bond_stiffness, self.critical_stretch,
-            self.bond_damage, self.nnodes, self.nlist, u, self.coords,
+            self.bond_damage, self.nnodes, self.nlist, self.u, self.coords,
             self.node_force.copy(), self.max_neighbours, self.force_bc_values,
             self.force_bc_types, force_bc_magnitude)
 
-    def _update_displacement(self, u, force, displacement_bc_magnitude):
-        return euler.update_displacement(self.nnodes,
-            force, u, self.bc_types, self.bc_values,
-            displacement_bc_magnitude, self.dt)
+    # def _update_displacement(self, u, force, displacement_bc_magnitude):
+    #     return euler.update_displacement(self.nnodes,
+    #         force, u, self.bc_types, self.bc_values,
+    #         displacement_bc_magnitude, self.dt)
+
+    def _update_displacement(self, damping, displacement_bc_magnitude):
+        return euler_cromer.update_displacement(self.nnodes,
+                                                self.degrees_freedom,
+                                                self.force,
+                                                self.u,
+                                                self.ud,
+                                                self.udd,
+                                                self.dt,
+                                                damping,
+                                                self.densities,
+                                                self.bc_types,
+                                                displacement_bc_magnitude,
+                                                self.bc_values)
 
     def _damage(self, bond_damage):
         """Calculate bond damage."""
