@@ -188,7 +188,7 @@ def main():
     # will help the system to converge to the quasi-static steady-state.
     damping = 2.5e6
     # Stable time step. Try increasing or decreasing it.
-    dt = 1.3e-6
+    dt = 1.3e-15  # 1.3e-6
     # integrator = VelocityVerletCL(dt=dt, damping=damping)
     integrator = EulerNumba_nlist(dt=dt)
 
