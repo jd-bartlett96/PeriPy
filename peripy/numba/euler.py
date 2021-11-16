@@ -16,5 +16,5 @@ def update_displacement(nnodes, degrees_freedom, force, u, bc_types,
             if bc_types[node_id_i, dof] != 0:
                 u[node_id_i, dof] = (displacement_bc_magnitude
                                      * bc_values[node_id_i, dof])
-    
+
     return u
