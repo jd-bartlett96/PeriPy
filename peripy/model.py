@@ -1,4 +1,14 @@
 """Peridynamics model."""
+
+import pathlib
+import warnings
+from collections import namedtuple
+
+import numpy as np
+from tqdm import trange
+import meshio
+import sklearn.neighbors as neighbors
+
 from .integrators import Integrator
 from .utilities import write_array
 from .create_crack import create_crack
@@ -6,14 +16,6 @@ from .correction import (set_volume_correction,
                          set_imprecise_surface_correction,
                          set_precise_surface_correction,
                          set_micromodulus_function)
-from collections import namedtuple
-import numpy as np
-import pathlib
-from tqdm import trange
-import warnings
-import meshio
-import sklearn.neighbors as neighbors
-
 
 _MeshElements = namedtuple("MeshElements", ["connectivity", "boundary"])
 _mesh_elements_2d = _MeshElements(connectivity="triangle",

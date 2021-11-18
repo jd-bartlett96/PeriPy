@@ -1,12 +1,14 @@
 """Integrators."""
-from abc import ABC, abstractmethod
 
-from .cl import double_fp_support, get_context, output_device_info
-from pyopencl import mem_flags as mf
-# from .peridynamics import damage, node_force, update_displacement, break_bonds
-import pyopencl as cl
+from abc import ABC, abstractmethod
 import pathlib
+
+from pyopencl import mem_flags as mf
+import pyopencl as cl
 import numpy as np
+
+# from .peridynamics import damage, node_force, update_displacement, break_bonds
+from .cl import double_fp_support, get_context, output_device_info
 from .numba import euler, euler_cromer
 from .numba.peridynamics_nlist import (
     numba_node_force_nlist,
