@@ -63,6 +63,8 @@ def numba_node_force_nlist(
                 f_x = f * xi_eta_x / y
                 f_y = f * xi_eta_y / y
                 f_z = f * xi_eta_z / y
+
+                # TODO: this is not thread safe
                 # Add force to particle node_id_i, using Newton's third law
                 # subtract force from node_id_j
                 node_force[node_id_i, 0] += f_x

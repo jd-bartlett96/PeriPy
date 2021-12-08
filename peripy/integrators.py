@@ -882,8 +882,10 @@ class EulerNumba_blist(Integrator):
         self.force, self.bond_damage = self._node_force(force_bc_magnitude,
                                                         self.u)
         # Conduct one integration step
-        self._update_displacement(self.u, self.force,
-                                  displacement_bc_magnitude)
+        # self._update_displacement(self.u, self.force,
+        #                           displacement_bc_magnitude)
+
+        self._update_displacement(2.5E6, displacement_bc_magnitude)
 
     def create_buffers(
             self, nlist, n_neigh, bond_stiffness, critical_stretch, plus_cs,
@@ -973,9 +975,8 @@ class EulerNumba_blist(Integrator):
         # self.blist = np.array(blist)
 
         # Create bond list
-        self.blist = [
-            [i, j] for i, nlist_i in enumerate(self.nlist)
-            for j in nlist_i if i < j]
+        self.blist = [[i, j] for i, nlist_i in enumerate(self.nlist)
+                      for j in nlist_i if i < j]
         self.blist = np.array(self.blist, dtype=np.intc)
         self.nbonds = len(self.blist)
 
@@ -1001,10 +1002,24 @@ class EulerNumba_blist(Integrator):
             self.node_force.copy(), self.force_bc_values, self.force_bc_types,
             force_bc_magnitude, self.f_x, self.f_y, self.f_z)
 
-    def _update_displacement(self, u, force, displacement_bc_magnitude):
-        return euler.update_displacement(self.nnodes,
-            force, u, self.bc_types, self.bc_values,
-            displacement_bc_magnitude, self.dt)
+    # def _update_displacement(self, u, force, displacement_bc_magnitude):
+    #     return euler.update_displacement(self.nnodes,
+    #         force, u, self.bc_types, self.bc_values,
+    #         displacement_bc_magnitude, self.dt)
+
+    def _update_displacement(self, damping, displacement_bc_magnitude):
+        return euler_cromer.update_displacement(self.nnodes,
+                                                self.degrees_freedom,
+                                                self.force,
+                                                self.u,
+                                                self.ud,
+                                                self.udd,
+                                                self.dt,
+                                                damping,
+                                                self.densities,
+                                                self.bc_types,
+                                                displacement_bc_magnitude,
+                                                self.bc_values)
 
     def _damage(self, bond_damage):
         """Calculate bond damage."""

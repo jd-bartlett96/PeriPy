@@ -26,6 +26,7 @@ def update_displacement(nnodes, degrees_freedom,
     :returns: The displacements, velocities and accelerations of each node.
     """
 
+    # TODO: pass test_peridynamics.py -> TestUpdateDiplacement
     for node_id_i in prange(nnodes):
         for dof in range(degrees_freedom):
             udd[node_id_i, dof] = ((force[node_id_i, dof] -

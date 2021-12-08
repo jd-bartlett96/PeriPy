@@ -41,8 +41,8 @@ def numba_node_force_blist(
             stretch, s0, s1, sc, bond_damage[global_id], beta)
 
         # TODO: bond_stiffness should not be an array
-        f = stretch * bond_stiffness[0] * (
-            1 - bond_damage[global_id]) * volume[node_id_j]
+        f = (stretch * bond_stiffness[0] * (1 - bond_damage[global_id])
+             * volume[node_id_j])
         f_x[global_id] = f * xi_eta_x / y
         f_y[global_id] = f * xi_eta_y / y
         f_z[global_id] = f * xi_eta_z / y
