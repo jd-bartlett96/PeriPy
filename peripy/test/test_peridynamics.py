@@ -1,6 +1,6 @@
 """Tests for the peridynamics modules."""
 import numpy as np
-from peripy.peridynamics import (damage, bond_force, break_bonds,
+from peripy.peridynamics import (damage, node_force, break_bonds,
                                  update_displacement)
 
 
@@ -85,7 +85,7 @@ class TestForce:
         force_bc_values = np.zeros((nnodes, 3), dtype=np.float64)
 
         force_expected = np.zeros((5, 3))
-        force_actual = bond_force(
+        force_actual = node_force(
             r0, r0, nl, n_neigh, volume, bond_stiffness, force_bc_values,
             force_bc_types, force_bc_scale)
         assert np.allclose(force_actual, force_expected)
@@ -119,7 +119,7 @@ class TestForce:
             [0.05, 0.05, 0.0]
             ])
 
-        actual_force = bond_force(
+        actual_force = node_force(
             r, r0, nl, n_neigh, volume, bond_stiffness, force_bc_values,
             force_bc_types, force_bc_scale)
 

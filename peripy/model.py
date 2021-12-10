@@ -612,13 +612,6 @@ class Model(object):
             nlist[i][:family[i]] = neighbour_list[i]
         nlist = nlist.astype(np.intc)
         n_neigh = family.copy()
-
-        blist = [
-            [i,j] for i, nlist_i in enumerate(nlist)
-            for j in nlist_i if i < j]
-        blist = np.array(blist, dtype=np.intc)
-        nbonds = len(blist)
-
         if initial_crack is not None:
             if callable(initial_crack):
                 initial_crack = initial_crack(
@@ -628,7 +621,7 @@ class Model(object):
                 nlist, n_neigh
                 )
 
-        return (family, nlist, blist, max_neighbours)
+        return (family, nlist, n_neigh, max_neighbours)
 
     def _set_neighbour_listSS(self, coords, horizon, nnodes,
                             initial_crack=None, context=None):

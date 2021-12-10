@@ -386,6 +386,8 @@ class Euler(Integrator):
                              "material type and bond_stiffness.")
         self.nlist = nlist
         self.n_neigh = n_neigh
+        print(self.n_neigh)
+        assert 0
         self.bond_stiffness = bond_stiffness
         self.critical_stretch = critical_stretch
         self.u = u
@@ -452,6 +454,11 @@ class Euler(Integrator):
 
     def _break_bonds(self, u, nlist, n_neigh):
         """Break bonds which have exceeded the critical strain."""
+        # reak_bonds(r, r0, nlist, n_neigh, critical_strain)
+        print(np.shape(nlist))
+        print(np.shape(n_neigh))
+        print(np.shape(self.critical_stretch))
+        assert 0
         break_bonds(self.coords+u, self.coords, nlist, n_neigh,
                     self.critical_stretch)
 

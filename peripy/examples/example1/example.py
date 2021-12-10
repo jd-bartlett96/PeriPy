@@ -83,9 +83,9 @@ def main():
     if args.opencl:
         # The :class:`peripy.integrators.EulerCL` class is the OpenCL
         # implementation of the explicit Euler integration scheme.
-        #integrator = EulerCL(dt=1e-3)
+        integrator = EulerCL(dt=1e-3)
         #integrator = EulerNumba_blist(dt=1e-3)
-        integrator = EulerNumba_blist_unfused(dt=1e-3)
+        #integrator = EulerNumba_blist_unfused(dt=1e-3)
         #integrator = EulerNumba_nlist(dt=1e-3)
     else:
         # The :class:`peripy.integrators.Euler` class is the cython

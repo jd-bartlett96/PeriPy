@@ -31,6 +31,7 @@ def numba_node_force_nlist(
     """
     The bond lengths are not precalculated. Seeing if paralellising this way,
     by merging all functions, which gets rid of overhead, is faster.
+    # TODO: this has unrolled cartesian coords. experiment with vectorised.
     """
     # For each node, i
     for node_id_i in prange(nnodes):
@@ -38,8 +39,11 @@ def numba_node_force_nlist(
             # Access node within node_id_i's horizon with corresponding
             # node_id_j
             node_id_j = nlist[node_id_i, j]
+            local_cache_x = np.zeros(max_neigh)
+            local_cache_y = local_cache_x.copy()
+            local_cache_z = local_cache_x.copy()
             # If bond is not broken
-            if (node_id_j != -1) and (node_id_i < node_id_j):
+            if (node_id_j != -1):
                 xi_x = r0[node_id_j, 0] - r0[node_id_i, 0]              # initial separtion in each dirn
                 xi_y = r0[node_id_j, 1] - r0[node_id_i, 1]
                 xi_z = r0[node_id_j, 2] - r0[node_id_i, 2]
@@ -56,17 +60,15 @@ def numba_node_force_nlist(
                 #     global_size, stretch, sc, sigma, bond_damage)
                 f = stretch * bond_stiffness * (
                     1 - bond_damage[node_id_i, j]) * volume[node_id_j]
-                f_x = f * xi_eta_x / y
-                f_y = f * xi_eta_y / y
-                f_z = f * xi_eta_z / y
-                # Add force to particle node_id_i, using Newton's third law
-                # subtract force from node_id_j
-                node_force[node_id_i, 0] += f_x
-                node_force[node_id_j, 0] -= f_x
-                node_force[node_id_i, 1] += f_y
-                node_force[node_id_j, 1] -= f_y
-                node_force[node_id_i, 2] += f_z
-                node_force[node_id_j, 2] -= f_z
+
+                local_cache_x[j] = f * xi_eta_x / y
+                local_cache_y[j] = f * xi_eta_y / y
+                local_cache_z[j] = f * xi_eta_z / y
+
+        # Add reduced force to particle node_id_i
+        node_force[node_id_i, 0] = np.sum(local_cache_x)
+        node_force[node_id_i, 1] = np.sum(local_cache_y)
+        node_force[node_id_i, 2] = np.sum(local_cache_z)
         # TODO: This might be a preferable way to apply BCs
         # if force_bc_types[node_id_i, 0] != 0:
         #     node_force[node_id_i, 0] += force_bc_magnitude * force_bc_values[
@@ -75,6 +77,19 @@ def numba_node_force_nlist(
         #         node_id_i, 1]
         #     node_force[node_id_i, 2] += force_bc_magnitude * force_bc_values[
         #         node_id_i, 2]
+    # Neumann boundary conditions
+    node_force[:, 0] = np.where(
+        force_bc_types[:, 0] == 0,
+        node_force[:, 0],
+        node_force[:, 0] + force_bc_magnitude * force_bc_values[:, 0])
+    node_force[:, 1] = np.where(
+        force_bc_types[:, 1] == 0,
+        node_force[:, 1],
+        node_force[:, 1] + force_bc_magnitude * force_bc_values[:, 1])
+    node_force[:, 2] = np.where(
+        force_bc_types[:, 2] == 0,
+        node_force[:, 2],
+        node_force[:, 2] + force_bc_magnitude * force_bc_values[:, 2])
     # TODO: Not sure if this is a good idea to apply BCs with fancy indexing
     # node_force[force_bc_indices] += force_bc_magnitude * force_bc_values[
     #     force_bc_indices]
