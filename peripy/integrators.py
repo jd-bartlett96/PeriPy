@@ -799,6 +799,12 @@ class EulerNumba_nlist(Integrator):
             (self.nnodes, self.degrees_freedom), dtype=np.float64)
         self.bond_damage = np.zeros(
             (self.nnodes, self.max_neighbours), dtype=np.float64)
+        self.f_x = np.zeros(
+            (self.nnodes, self.max_neighbours), dtype=np.float64)
+        self.f_y = np.zeros(
+            (self.nnodes, self.max_neighbours), dtype=np.float64)
+        self.f_z = np.zeros(
+            (self.nnodes, self.max_neighbours), dtype=np.float64)
 
     def _build_special(self):
         """Build OpenCL kernels special to the integrator."""
@@ -810,7 +816,8 @@ class EulerNumba_nlist(Integrator):
             self.volume, self.bond_stiffness, self.critical_stretch,
             self.bond_damage, self.nnodes, self.nlist, u, self.coords,
             self.node_force.copy(), self.max_neighbours, self.force_bc_values,
-            self.force_bc_types, force_bc_magnitude)
+            self.force_bc_types, force_bc_magnitude,
+            self.f_x.copy(), self.f_y.copy(), self.f_z.copy())
 
     # def _update_displacement(self, u, force, displacement_bc_magnitude):
     #     return euler.update_displacement(

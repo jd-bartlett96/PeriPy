@@ -26,7 +26,8 @@ def bond_length_nlist(nnodes, max_neigh, nlist, r0, l0):
 def numba_node_force_nlist(
         volume, bond_stiffness, sc, bond_damage,
         nnodes, nlist, u, r0, node_force, max_neigh,
-        force_bc_values, force_bc_types, force_bc_magnitude):
+        force_bc_values, force_bc_types, force_bc_magnitude,
+        f_x, f_z, f_y):
     """
     The bond lengths are not precalculated. Seeing if paralellising this way,
     by merging all functions, which gets rid of overhead, is faster.
@@ -58,25 +59,32 @@ def numba_node_force_nlist(
                 bond_damage[node_id_i, j] = bond_damage_trilinear(
                     stretch, s0, s1, sc, bond_damage[node_id_i, j], beta)
                 # TODO: bond_stiffness should not be an array
-                f = stretch * bond_stiffness[0] * (
-                    1 - bond_damage[node_id_i, j]) * volume[node_id_j]
-                f_x = f * xi_eta_x / y
-                f_y = f * xi_eta_y / y
-                f_z = f * xi_eta_z / y
+                f = (stretch * bond_stiffness[0]
+                     * (1 - bond_damage[node_id_i, j]) * volume[node_id_j])
+                f_x[node_id_i, j] = f * xi_eta_x / y
+                f_y[node_id_i, j] = f * xi_eta_y / y
+                f_z[node_id_i, j] = f * xi_eta_z / y
 
-                # TODO: this is not thread safe
+    for node_id_i in range(nnodes):
+        for j in range(max_neigh):
+            node_id_j = nlist[node_id_i, j]
+            if (node_id_j != -1) and (node_id_i < node_id_j):
                 # Add force to particle node_id_i, using Newton's third law
                 # subtract force from node_id_j
-                node_force[node_id_i, 0] += f_x
-                node_force[node_id_j, 0] -= f_x
-                node_force[node_id_i, 1] += f_y
-                node_force[node_id_j, 1] -= f_y
-                node_force[node_id_i, 2] += f_z
-                node_force[node_id_j, 2] -= f_z
+                node_force[node_id_i, 0] += f_x[node_id_i, j]
+                node_force[node_id_j, 0] -= f_x[node_id_i, j]
+                node_force[node_id_i, 1] += f_y[node_id_i, j]
+                node_force[node_id_j, 1] -= f_y[node_id_i, j]
+                node_force[node_id_i, 2] += f_z[node_id_i, j]
+                node_force[node_id_j, 2] -= f_z[node_id_i, j]
+
     # Neumann boundary conditions
-    node_force[:, 0] = np.where(force_bc_types[:, 0] == 0, node_force[:, 0], node_force[:, 0] + force_bc_magnitude * force_bc_values[:, 0])
-    node_force[:, 1] = np.where(force_bc_types[:, 1] == 0, node_force[:, 1], node_force[:, 1] + force_bc_magnitude * force_bc_values[:, 1])
-    node_force[:, 2] = np.where(force_bc_types[:, 2] == 0, node_force[:, 2], node_force[:, 2] + force_bc_magnitude * force_bc_values[:, 2])
+    node_force[:, 0] = np.where(force_bc_types[:, 0] == 0, node_force[:, 0],
+                                node_force[:, 0] + force_bc_magnitude * force_bc_values[:, 0])
+    node_force[:, 1] = np.where(force_bc_types[:, 1] == 0, node_force[:, 1],
+                                node_force[:, 1] + force_bc_magnitude * force_bc_values[:, 1])
+    node_force[:, 2] = np.where(force_bc_types[:, 2] == 0, node_force[:, 2],
+                                node_force[:, 2] + force_bc_magnitude * force_bc_values[:, 2])
     return node_force, bond_damage
 
 
