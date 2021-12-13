@@ -19,7 +19,7 @@ before_script:
   - python .travis/context_info.py
 
 script:
-  - pytest -v --cov-config=.coveragerc --cov=./peripy
+  - pytest -v --cov-config=.coveragerc --cov=./peridynamics
 
 after_success:
   - codecov

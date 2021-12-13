@@ -121,7 +121,7 @@ def main():
     u, damage, *_ = model.simulate(
         steps=steps,
         displacement_bc_magnitudes=displacement_bc_array,
-        write_mesh=100)
+        write=100)
 
     if args.profile:
         profile.disable()

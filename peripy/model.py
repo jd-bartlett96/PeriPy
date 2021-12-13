@@ -41,7 +41,7 @@ class Model(object):
     """
 
     def __init__(self, mesh_file, integrator, horizon, critical_stretch,
-                 bond_stiffness, transfinite=0,
+                 bond_stiffness,
                  volume_total=None, write_path=None, connectivity=None,
                  family=None, volume=None, initial_crack=None, dimensions=2,
                  is_density=None, is_bond_type=None,
@@ -63,8 +63,7 @@ class Model(object):
         size of the critical_stretch and bond_stiffness positional arguments.
 
         :arg str mesh_file: Path of the mesh file defining the systems nodes
-            and connectivity, or :class:`numpy.ndarray` or list of lists
-            containing coordinates of nodes.
+            and connectivity.
         :arg  integrator: The integrator to use, see
             :mod:`peripy.integrators` for options.
         :type integrator: :class:`peripy.integrators.Integrator`
@@ -81,12 +80,8 @@ class Model(object):
             or a float value of the bond stiffness the Peridynamic bond-based
             prototype microelastic brittle (PMB) model.
         :type bond_stiffness: :class:`numpy.ndarray` or float
-        :arg bool transfinite: Set to 1 for Cartesian cubic (tensor grid) mesh.
-            Set to 0 for a tetrahedral mesh (default). If set to 1, the
-            volumes of the nodes are approximated as the average volume of
-            nodes on a cuboidal tensor-grid mesh.
         :arg float volume_total: Total volume of the mesh. Must be provided if
-            transfinite mode (transfinite=1) is used.
+            meshless mode (Model.mesh_connectivity=False) is used.
         :arg write_path: The path where the model arrays, (volume, family,
             connectivity, stiffness_corrections, bond_types) should be
             written to file to avoid doing time expensive calculations each
@@ -187,7 +182,7 @@ class Model(object):
             University of Nebraska-Lincoln, Department of Mechanical &
             Materials Engineering (September 2010)] is used. Set to None:
             The 'Full Volume algorithm' is used; partial nodal volumes are
-            approximated by their full nodal volumes. Defauly None.
+            approximated by their full nodal volumes. Default None.
         :arg int micromodulus_function: A flag variable denoting the
             normalised micromodulus function. Set to 0: A conical micromodulus
             function is used, which is normalised such that the maximum value
@@ -276,47 +271,58 @@ class Model(object):
         # Calculate the family (number of bonds in the initial configuration)
         # and connectivity for each node, if None is provided
         if family is None or connectivity is None:
-            # Calculate neighbour list
+
             this_may_take_a_while(self.nnodes, 'family, connectivity')
+
+            # Calculate neighbour list
             (self.family,
              nlist,
              n_neigh,
              self.max_neighbours) = self._set_neighbour_list(
-                 self.coords, self.horizon, self.nnodes,
-                 initial_crack, integrator.context)
+                self.coords, self.horizon, self.nnodes,
+                initial_crack, integrator.context)
+
             if self.write_path is not None:
+
                 write_array(self.write_path, "family", self.family)
                 write_array(self.write_path, "nlist", nlist)
                 write_array(self.write_path, "n_neigh", n_neigh)
+
         else:
 
             if type(family) == np.ndarray:
+
                 if np.shape(family) != (self.nnodes, ):
+
                     raise ValueError("family shape is wrong, and must be "
                                      "(nnodes, ) (expected {}, got {})".format(
-                                         (self.nnodes, ),
-                                         np.shape(family)))
-                warnings.warn(
-                        "Reading family from argument.")
+                                         (self.nnodes, ), np.shape(family)))
+
+                warnings.warn("Reading family from argument.")
                 self.family = family.astype(np.intc)
+
             elif type(family) != np.ndarray:
+
                 raise TypeError("family type is wrong (expected {}, got "
-                                "{})".format(type(family),
-                                             np.ndarray))
+                                "{})".format(type(family), np.ndarray))
 
             if type(connectivity) == tuple:
+
                 if len(connectivity) != 2:
+
                     raise ValueError("connectivity size is wrong (expected 2,"
                                      " got {})".format(len(connectivity)))
-                warnings.warn(
-                    "Reading connectivity from argument.")
+
+                warnings.warn("Reading connectivity from argument.")
+
                 nlist, n_neigh = connectivity
                 nlist = nlist.astype(np.intc)
                 n_neigh = n_neigh.astype(np.intc)
+
                 if integrator.context is None:
-                    self.max_neighbours = np.intc(
-                                np.shape(nlist)[1]
-                            )
+
+                    self.max_neighbours = np.intc(np.shape(nlist)[1])
+
                     if self.max_neighbours != self.family.max():
                         raise ValueError(
                             "max_neighbours, which is equal to the"
@@ -324,12 +330,14 @@ class Model(object):
                             " max_neighbours = np.shape(nlist)[1] = "
                             "family.max() = {}, got {})".format(
                                 self.family.max(), self.max_neighbours))
+
                 else:
-                    self.max_neighbours = np.intc(
-                        np.shape(nlist)[1]
-                        )
+
+                    self.max_neighbours = np.intc(np.shape(nlist)[1])
                     test = self.max_neighbours - 1
+
                     if self.max_neighbours & test:
+
                         raise ValueError(
                             "max_neighbours, which is equal to the"
                             " size of axis 1 of nlist is wrong (expected "
@@ -337,12 +345,15 @@ class Model(object):
                             " got {})".format(
                                 1 << (int(self.family.max() - 1)).bit_length(),
                                 self.max_neighbours))
+
             else:
+
                 raise TypeError("connectivity type is wrong (expected {} or"
                                 " {}, got {})".format(
                                     tuple, type(None), type(connectivity)))
 
         if np.any(self.family == 0):
+
             raise FamilyError(self.family)
 
         self.initial_connectivity = (nlist, n_neigh)
@@ -479,45 +490,33 @@ class Model(object):
             self.bc_values, self.force_bc_types, self.force_bc_values,
             self.stiffness_corrections, self.bond_types, self.densities)
 
-    def _read_mesh(self, mesh_file):
+    def _read_mesh(self, filename):
         """
         Read the model's nodes, connectivity and boundary from a mesh file.
 
-        :arg mesh_file: Path of the mesh file to read or
-            :class:`numpy.ndarray` or list of lists containing
-            coordinates of nodes.
-        :type mesh_file: str or :class:`numpy.ndarray` or list
+        :arg str filename: Path of the mesh file to read
+
         :returns: None
         :rtype: NoneType
         """
-        if isinstance(mesh_file, np.ndarray) or isinstance(mesh_file, list):
-            self.coords = np.array(mesh_file, dtype=np.float64)
+        mesh = meshio.read(filename)
+        # Get coordinates, encoded as mesh points
+        self.coords = np.array(mesh.points, dtype=np.float64)
+        self.nnodes = self.coords.shape[0]
+        try:
+            # Get connectivity, mesh triangle cells
+            self.mesh_connectivity = mesh.cells_dict[
+                self.mesh_elements.connectivity
+                ]
+            # Get boundary connectivity, mesh lines
+            self.mesh_boundary = mesh.cells_dict[self.mesh_elements.boundary]
+        except KeyError as e:
             self.mesh_connectivity = False
             self.mesh_boundary = False
             warnings.warn(
-                    "Mesh not supplied. Setting Model.mesh_connectivity=False "
-                    "and in meshless mode: output `mesh' will not be connected"
-                    ", but it will be a point cloud.")
-        else:
-            mesh = meshio.read(mesh_file)
-            # Get coordinates, encoded as mesh points
-            self.coords = np.array(mesh.points, dtype=np.float64)
-            try:
-                # Get connectivity, mesh triangle cells
-                self.mesh_connectivity = mesh.cells_dict[
-                    self.mesh_elements.connectivity
-                    ]
-                # Get boundary connectivity, mesh lines
-                self.mesh_boundary = mesh.cells_dict[
-                    self.mesh_elements.boundary]
-            except KeyError as e:
-                self.mesh_connectivity = False
-                self.mesh_boundary = False
-                warnings.warn(
-                    "KeyError: {}, setting Model.mesh_connectivity=False and i"
-                    "n meshless mode: output `mesh' will not be connected, but"
-                    " it will be a point cloud.".format(e))
-        self.nnodes = self.coords.shape[0]
+                "KeyError: {}, setting Model.mesh_connectivity=False and in "
+                "meshless mode: output `mesh' will not be connected, but it"
+                " will be a point cloud.".format(e))
 
     def write_mesh(self, filename, damage=None, displacements=None,
                    file_format=None):
@@ -532,6 +531,7 @@ class Model(object):
         :type displacements: :class:`numpy.ndarray`
         :arg str file_format: The file format of the mesh file to
             write. Inferred from `filename` if None. Default is None.
+
         :returns: None
         :rtype: NoneType
         """
@@ -590,36 +590,33 @@ class Model(object):
                       :class:`numpy.ndarray`, int)
         """
         tree = neighbors.KDTree(coords, leaf_size=160)
-        neighbour_list = tree.query_radius(
-            coords, r=horizon)
+        neighbour_list = tree.query_radius(coords, r=horizon)
+
         # Remove identity values, as there is no bond between a node and itself
-        neighbour_list = [
-            neighbour_list[i][neighbour_list[i] != i]
-            for i in range(nnodes)]
+        neighbour_list = [neighbour_list[i][neighbour_list[i] != i]
+                          for i in range(nnodes)]
 
         family = [len(neighbour_list[i]) for i in range(nnodes)]
         family = np.array(family, dtype=np.intc)
 
         if context:
-            max_neighbours = np.intc(
-                1 << (int(family.max() - 1)).bit_length())
-            nlist = -1.*np.ones((nnodes, max_neighbours),
-                                dtype=np.intc)
+            max_neighbours = np.intc(1 << (int(family.max() - 1)).bit_length())
+            nlist = -1.*np.ones((nnodes, max_neighbours), dtype=np.intc)
         else:
             max_neighbours = family.max()
             nlist = np.zeros((nnodes, max_neighbours), dtype=np.intc)
+        
         for i in range(nnodes):
             nlist[i][:family[i]] = neighbour_list[i]
+
         nlist = nlist.astype(np.intc)
         n_neigh = family.copy()
         if initial_crack is not None:
             if callable(initial_crack):
-                initial_crack = initial_crack(
-                        coords, nlist, n_neigh)
-            create_crack(
-                np.array(initial_crack, dtype=np.int32),
-                nlist, n_neigh
-                )
+                initial_crack = initial_crack(coords, nlist, n_neigh)
+
+            create_crack(np.array(initial_crack, dtype=np.int32),
+                         nlist, n_neigh)
 
         return (family, nlist, n_neigh, max_neighbours)
 
@@ -689,6 +686,7 @@ class Model(object):
 
         :arg float volume_total: Total volume of the mesh. Must be provided if
             meshless mode (Model.mesh_connectivity=True) is used.
+
         :returns: Tuple containing an array of volumes for each node.
         :rtype: :class:`numpy.ndarray`
         """
@@ -697,7 +695,7 @@ class Model(object):
                 raise TypeError("In meshless mode, a total mesh volume "
                                 "volume_total' must be provided as a keyword"
                                 " argument (expected {}, got {})".format(
-                                    float, type(volume_total)))
+                                     float, type(volume_total)))
         volume = np.zeros(self.nnodes)
         dimensions = self.dimensions
 
@@ -1296,8 +1294,8 @@ class Model(object):
     def simulate(self, steps, u=None, ud=None, connectivity=None,
                  regimes=None, critical_stretch=None, bond_stiffness=None,
                  displacement_bc_magnitudes=None, force_bc_magnitudes=None,
-                 first_step=1, write_path_mesh=None, write_path_data=None,
-                 write_mesh=None, write_data=None):
+                 first_step=1, write=None,
+                 write_path=None):
         """
         Simulate the peridynamics model.
 
@@ -1368,44 +1366,51 @@ class Model(object):
          force_bc_magnitudes,
          damage,
          data,
-         write_path_mesh,
-         write_path_data) = self._simulate_initialise(
-             steps, first_step, write_data, regimes, u, ud,
+         nwrites,
+         write_path) = self._simulate_initialise(
+             steps, first_step, write, regimes, u, ud,
              displacement_bc_magnitudes, force_bc_magnitudes, connectivity,
-             bond_stiffness, critical_stretch, write_path_mesh,
-             write_path_data)
+             bond_stiffness, critical_stretch, write_path)
 
         for step in trange(first_step, first_step+steps,
                            desc="Simulation Progress", unit="steps"):
 
             # Call one integration step
-            self.integrator(
-                displacement_bc_magnitudes[step - 1],
-                force_bc_magnitudes[step - 1])
+            self.integrator(displacement_bc_magnitudes[step - 1],
+                            force_bc_magnitudes[step - 1])
 
-            if (write_mesh and step % write_mesh == 0) or (
-                    write_data and step % write_data == 0):
-                (u,
-                 ud,
-                 udd,
-                 force,
-                 body_force,
-                 damage,
-                 nlist,
-                 n_neigh) = self.integrator.write(
-                    u, ud, udd, body_force, force, damage, nlist, n_neigh)
-            if write_mesh:
-                if step % write_mesh == 0:
-                    self.write_mesh(
-                        write_path_mesh/f"U_{step}.vtk", damage, u)
-            if write_data:
-                if step % write_data == 0:
+            if write:
+                if step % write == 0:
+                    (u,
+                     ud,
+                     udd,
+                     force,
+                     body_force,
+                     damage,
+                     nlist,
+                     n_neigh) = self.integrator.write(
+                         u, ud, udd, body_force, force, damage, nlist, n_neigh)
+
+                    self.write_mesh(write_path/f"U_{step}.vtk", damage, u)
+
                     # Write index number
-                    ii = (
-                        step // write_data
-                        - (first_step - 1) // write_data - 1)
+                    ii = step // write - (first_step - 1) // write - 1
 
                     for tip_type, node_list in self.tip_types.items():
+                        if tip_type not in data:
+                            # Build data dict for this tip type
+                            data[tip_type] = {
+                                'displacement': np.zeros(
+                                    nwrites, dtype=np.float64),
+                                'velocity': np.zeros(
+                                    nwrites, dtype=np.float64),
+                                'acceleration': np.zeros(
+                                    nwrites, dtype=np.float64),
+                                'force': np.zeros(
+                                    nwrites, dtype=np.float64),
+                                'body_force': np.zeros(
+                                    nwrites, dtype=np.float64)
+                                }
                         for node in node_list:
                             i, j = node
                             # Add to tip data for the write index, ii
@@ -1429,6 +1434,7 @@ class Model(object):
                         force * self.volume[:, np.newaxis])
                     data['model']['body_force'][ii] = np.sum(
                         body_force * self.volume[:, np.newaxis])
+
                     damage_sum = np.sum(damage)
                     data['model']['damage_sum'][ii] = damage_sum
                     if damage_sum > 0.05*self.nnodes:
@@ -1437,15 +1443,14 @@ class Model(object):
                     elif damage_sum > 0.7*self.nnodes:
                         warnings.warn('Over 7% of bonds have broken!\
                                       peridynamics simulation continuing')
-        if write_data:
-            for tip_type_str in data:
-                # Average the nodal displacements, velocities and
-                # accelerations
-                ntip = self.ntips[tip_type_str]
-                if ntip != 0:
-                    data[tip_type_str]['displacement'] /= ntip
-                    data[tip_type_str]['velocity'] /= ntip
-                    data[tip_type_str]['acceleration'] /= ntip
+        for tip_type_str in data:
+            # Average the nodal displacements, velocities and
+            # accelerations
+            ntip = self.ntips[tip_type_str]
+            if ntip != 0:
+                data[tip_type_str]['displacement'] /= ntip
+                data[tip_type_str]['velocity'] /= ntip
+                data[tip_type_str]['acceleration'] /= ntip
         (u,
          ud,
          udd,
@@ -1459,19 +1464,18 @@ class Model(object):
         return (u, damage, (nlist, n_neigh), force, ud, data)
 
     def _simulate_initialise(
-            self, steps, first_step, write_data, regimes, u, ud,
+            self, steps, first_step, write, regimes, u, ud,
             displacement_bc_magnitudes, force_bc_magnitudes, connectivity,
-            bond_stiffness, critical_stretch, write_path_mesh,
-            write_path_data):
+            bond_stiffness, critical_stretch, write_path):
         """
         Initialise simulation variables.
 
         :arg int steps: The number of simulation steps to conduct.
         :arg int first_step: The starting step number. This is useful when
             restarting a simulation.
-        :arg int write_data: The frequency, in number of steps, to write the
-            system to a data file by calling :meth:`Integrator.write`. If None
-            then no output is written. Default None.
+        :arg int write: The frequency, in number of steps, to write the system
+            to a mesh file by calling :meth:`Model.write_mesh`. If None then
+            no output is written. Default None.
         :arg regimes: The initial regimes for the simulation. A
             (`nodes`, `max_neighbours`) array of type
             :class:`numpy.ndarray` of the regimes of the bonds.
@@ -1617,49 +1621,28 @@ class Model(object):
                         self.nbond_types, nbond_types))
 
         # If no write path was provided use the current directory, otherwise
-        # ensure write_path_mesh and write_path is a Path object.
-        if write_path_mesh is None:
-            write_path_mesh = pathlib.Path()
-        else:
-            write_path_mesh = pathlib.Path(write_path_mesh)
-        # If no write path was provided use the current directory, otherwise
         # ensure write_path is a Path object.
-        if write_path_data is None:
-            write_path_data = pathlib.Path()
+        if write_path is None:
+            write_path = pathlib.Path()
         else:
-            write_path_data = pathlib.Path(write_path_data)
+            write_path = pathlib.Path(write_path)
 
-        # Dictionary for plotting data
+        # Container for plotting data
         data = {}
         nwrites = None
-        if write_data:
+        if write:
             nwrites = (
-                (first_step + steps - 1) // write_data
-                - (first_step - 1) // write_data)
-            data['model'] = {
-                'step': np.zeros(nwrites, dtype=int),
-                'displacement': np.zeros(nwrites, dtype=np.float64),
-                'velocity': np.zeros(nwrites, dtype=np.float64),
-                'acceleration': np.zeros(nwrites, dtype=np.float64),
-                'force': np.zeros(nwrites, dtype=np.float64),
-                'body_force': np.zeros(nwrites, dtype=np.float64),
-                'damage_sum': np.zeros(nwrites, dtype=np.float64)
-                }
-            for tip_type, _ in self.tip_types.items():
-                if tip_type not in data:
-                    # Build data dict for this tip type
-                    data[tip_type] = {
-                        'displacement': np.zeros(
-                            nwrites, dtype=np.float64),
-                        'velocity': np.zeros(
-                            nwrites, dtype=np.float64),
-                        'acceleration': np.zeros(
-                            nwrites, dtype=np.float64),
-                        'force': np.zeros(
-                            nwrites, dtype=np.float64),
-                        'body_force': np.zeros(
-                            nwrites, dtype=np.float64)
-                        }
+                (first_step + steps - 1) // write - (first_step - 1) // write)
+            if write is not None:
+                data['model'] = {
+                    'step': np.zeros(nwrites, dtype=int),
+                    'displacement': np.zeros(nwrites, dtype=np.float64),
+                    'velocity': np.zeros(nwrites, dtype=np.float64),
+                    'acceleration': np.zeros(nwrites, dtype=np.float64),
+                    'force': np.zeros(nwrites, dtype=np.float64),
+                    'body_force': np.zeros(nwrites, dtype=np.float64),
+                    'damage_sum': np.zeros(nwrites, dtype=np.float64)
+                    }
 
         # Initialise the OpenCL buffers
         self.integrator.create_buffers(
@@ -1668,7 +1651,7 @@ class Model(object):
 
         return (u, ud, udd, force, body_force, nlist, n_neigh,
                 displacement_bc_magnitudes, force_bc_magnitudes, damage, data,
-                write_path_mesh, write_path_data)
+                nwrites, write_path)
 
 
 def initial_crack_helper(crack_function):
