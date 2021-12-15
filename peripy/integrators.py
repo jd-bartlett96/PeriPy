@@ -354,11 +354,9 @@ class Euler(Integrator):
         # Update neighbour list
         self._break_bonds(
             self.u, self.nlist, self.n_neigh)
-
         # Calculate the force due to bonds on each node
         self.force = self._node_force(
             force_bc_magnitude, self.u, self.nlist, self.n_neigh)
-
         # Conduct one integration step
         self._update_displacement(
             self.u, self.force, displacement_bc_magnitude)
@@ -393,7 +391,6 @@ class Euler(Integrator):
         self.u = u
         self.ud = ud
         self.udd = udd
-        self.force = force
         self.body_force = body_force
 
     def build(
@@ -557,7 +554,6 @@ class EulerNumba_blist_unfused(Integrator):
         self.u = u
         self.ud = ud
         self.udd = udd
-        self.force = force
         self.body_force = body_force
         self._create_special_buffers()
 
@@ -750,7 +746,6 @@ class EulerNumba_nlist(Integrator):
         self.u = u
         self.ud = ud
         self.udd = udd
-        self.force = force
         self.body_force = body_force
         self._create_special_buffers()
 
@@ -796,6 +791,8 @@ class EulerNumba_nlist(Integrator):
         """
         self.node_force = np.zeros(
             (self.nnodes, self.degrees_freedom), dtype=np.float64)
+        self.bond_force = np.zeros(
+            (self.nnodes, self.degrees_freedom), dtype=np.float64)
         self.bond_damage = np.zeros(
             (self.nnodes, self.max_neighbours), dtype=np.float64)
 
@@ -803,11 +800,16 @@ class EulerNumba_nlist(Integrator):
         """Build OpenCL kernels special to the integrator."""
         # There are none
 
+    volume, bond_stiffness, sc, bond_damage, bond_force,
+    nnodes, nlist, u, r0, node_force, max_neigh,
+    force_bc_values=None, force_bc_types=None, force_bc_magnitude=None):
+
     def _node_force(self, force_bc_magnitude, u):
         """Calculate the force due to bonds acting on each node."""
         return numba_node_force_nlist(
             self.volume, self.bond_stiffness, self.critical_stretch,
-            self.bond_damage, self.nnodes, self.nlist, u, self.coords,
+            self.bond_damage, self.bond_force.copy(),
+            self.nnodes, self.nlist, u, self.coords,
             self.node_force.copy(), self.max_neighbours, self.force_bc_values,
             self.force_bc_types, force_bc_magnitude)
 
@@ -901,7 +903,6 @@ class EulerNumba_blist(Integrator):
         self.u = u
         self.ud = ud
         self.udd = udd
-        self.force = force
         self.body_force = body_force
         self._create_special_buffers()
 
