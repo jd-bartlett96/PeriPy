@@ -95,6 +95,7 @@ def numba_node_force_nlist(
     return node_force
 
 
+# TODO: work out the post crack damage correctly
 @njit
 def numba_damage_nlistSS(nnodes, nlist, max_neigh, family):
     neighbors = np.zeros(nnodes)

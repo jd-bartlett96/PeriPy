@@ -1,11 +1,9 @@
-"""Damage laws.
-
-TODO: also define damage laws for composite materials, here.
-"""
+"""Damage laws."""
 from numba.core.decorators import njit
 import numpy as np
 
 
+@njit
 def bond_damage_PMB(
         stretch, sc, bond_damage):
     """
@@ -36,6 +34,7 @@ def bond_damage_PMB(
     return bond_damage
 
 
+@njit
 def bond_damage_sigmoid(
         stretch, sc, sigma, bond_damage):
     """
@@ -44,13 +43,14 @@ def bond_damage_sigmoid(
     Also known as ``bond damge'', the bond softening factors are applied to
     satisfy the damage law.
     """
-    bond_damage = 1 / (
-        np.exp((stretch - sc) / sigma) + 1)
+    bond_damage = 1.0 / (
+        np.exp((stretch - sc) / sigma) + 1.0)
     return bond_damage
+
 
 @njit
 def bond_damage_trilinear(
-        stretch, s0, s1, sc, bond_damage, beta):
+        stretch, s0, s1, sc, bond_damage, beta=0.25):
     """
     Calculate the bond softening factors for the trilinear model.
 
@@ -73,10 +73,10 @@ def bond_damage_trilinear(
     # loading, stretch[bond] <= s0
     if (stretch > s0) and (stretch <= s1):
         bond_damage_temp = (
-            1 - ((eta - beta) / (eta - 1) * (s0 / stretch))
-            + ((1 - beta) / (eta - 1)))
+            1.0 - ((eta - beta) / (eta - 1.0) * (s0 / stretch))
+            + ((1.0 - beta) / (eta - 1.0)))
     elif (stretch > s1) and (stretch <= sc):
-        bond_damage_temp = 1 - (
+        bond_damage_temp = 1.0 - (
                 (s0 * beta / stretch)
                 * ((sc - stretch) / (sc - s1)))
     elif stretch > sc:
@@ -87,6 +87,7 @@ def bond_damage_trilinear(
     return bond_damage
 
 
+@njit
 def bond_damage_exponential(
         stretch, s0, sc, bond_damage, k, alpha):
     """
@@ -106,12 +107,12 @@ def bond_damage_exponential(
     :arg float alpha:
     """
     if (stretch > s0) and (stretch < sc):
-        numerator = 1 - np.exp(-k * (stretch - s0) / (sc - s0))
-        residual = alpha * (1 - (stretch - s0) / (sc - s0))
-        bond_damage_temp = 1 - (s0 / stretch) * (
-            (1 - numerator / (1 - np.exp(-k))) + residual) / (1 + alpha)
+        numerator = 1.0 - np.exp(-k * (stretch - s0) / (sc - s0))
+        residual = alpha * (1.0 - (stretch - s0) / (sc - s0))
+        bond_damage_temp = 1.0 - (s0 / stretch) * (
+            (1.0 - numerator / (1.0 - np.exp(-k))) + residual) / (1.0 + alpha)
     elif stretch > sc:
-        bond_damage_temp = 1
+        bond_damage_temp = 1.0
     # Bond softening factor can only increase (damage is irreversible)
     if bond_damage_temp > bond_damage:
         bond_damage = bond_damage_temp
