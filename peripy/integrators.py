@@ -583,17 +583,13 @@ class EulerNumba_blist_unfused(Integrator):
         self.coords = coords
         self.family = family
         self.volume = volume
-        self.bc_types = bc_types  # TODO not needed
+        self.bc_types = bc_types
         self.bc_values = bc_values
-        #print(bc_types)
-        #self.bc_indices = np.where(bc_types != 0)
-        #print(self.bc_indices)
-        # self.force_bc_types = force_bc_types  # TODO not needed
+        self.force_bc_types = force_bc_types
         self.force_bc_values = force_bc_values
-        self.force_bc_indices = np.where(force_bc_types != 0)
         self.densities = densities
         self.stiffness_corrections = stiffness_corrections
-        # self.nbond_types = nbond_types  # TODO needed
+        # self.nbond_types = nbond_types  # TODO: needed
         self.degrees_freedom = degrees_freedom
 
     def _create_special_buffers(self):
@@ -775,12 +771,9 @@ class EulerNumba_nlist(Integrator):
         self.coords = coords
         self.family = family
         self.volume = volume
-        self.bc_types = bc_types  # TODO not needed
+        self.bc_types = bc_types
         self.bc_values = bc_values
-        #print(bc_types)
-        #self.bc_indices = np.where(bc_types != 0)
-        #print(self.bc_indices)
-        # self.force_bc_types = force_bc_types  # TODO not needed
+        self.force_bc_types = force_bc_types
         self.force_bc_values = force_bc_values
         self.force_bc_indices = np.where(force_bc_types != 0)
         self.densities = densities
@@ -811,7 +804,8 @@ class EulerNumba_nlist(Integrator):
         return numba_node_force_nlist(
             self.volume, self.bond_stiffness, self.critical_stretch,
             self.bond_damage, self.nnodes, self.nlist, u, self.coords,
-            self.node_force.copy(), self.max_neighbours)
+            self.node_force.copy(), self.force_bc_values, self.force_bc_types,
+            force_bc_magnitude, self.max_neighbours)
 
     def _update_displacement(self, u, force, displacement_bc_magnitude):
         return euler.update_displacement(self.nnodes,

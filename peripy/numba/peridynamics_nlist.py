@@ -1,7 +1,6 @@
 import numpy as np
 from numba import njit, prange
-# from .damage import bond_damage_PMB moved function over from damage.py
-# to here to avoid issues with "Cannot determine Numba type of <class 'function'>"
+from .damage import bond_damage_PMB
 # TODO: Is math.sqrt faster than np.sqrt?
 # TODO: Initialising deformed_X, _Y, _Z every iteration is expensive
 # TODO: then have deformed_X as input arguments using .copy()
@@ -114,33 +113,3 @@ def numba_damage_nlist(nnodes, bond_damage, max_neigh, family):
         for j in range(max_neigh):
             damage[node_id_i] += bond_damage[node_id_i, j]
     return damage / family
-
-@njit
-def bond_damage_PMB(
-        stretch, sc, bond_damage):
-    """
-    Calculate the bond softening factors for the trilinear model.
-
-    Also known as ``bond damge'', the bond softening factors are applied to
-    satisfy the damage law.
-
-    :arg int global_size: The number of bonds.
-    :arg stretch:
-    :type stretch:
-    :arg float s0:
-    :arg float s1:
-    :arg float sc:
-    :arg bond_damage:
-    :type bond_damage:
-    :arg float beta:
-    """
-    # bond softening factors will not increase from 0 under linear elastic
-    # regime
-    if stretch < sc:
-        bond_damage_temp = 0.0
-    else:
-        bond_damage_temp = 1.0
-    # bond softening factor can only increase (damage is irreversible)
-    if bond_damage_temp > bond_damage:
-        bond_damage = bond_damage_temp
-    return bond_damage
