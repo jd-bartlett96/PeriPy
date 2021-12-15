@@ -603,6 +603,8 @@ class Model(object):
             max_neighbours = np.intc(1 << (int(family.max() - 1)).bit_length())
             nlist = -1.*np.ones((nnodes, max_neighbours), dtype=np.intc)
         else:
+            # TODO: need to depricate this
+            # but changing this will break cython regression tests 
             max_neighbours = family.max()
             nlist = np.zeros((nnodes, max_neighbours), dtype=np.intc)
         
@@ -612,6 +614,7 @@ class Model(object):
         nlist = nlist.astype(np.intc)
         n_neigh = family.copy()
         if initial_crack is not None:
+            # TODO: a bond list implementation would be handled differently
             if callable(initial_crack):
                 initial_crack = initial_crack(coords, nlist, n_neigh)
 

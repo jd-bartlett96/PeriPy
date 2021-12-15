@@ -1,5 +1,5 @@
 """Damage laws."""
-from numba.core.decorators import njit
+from numba import njit
 import numpy as np
 
 

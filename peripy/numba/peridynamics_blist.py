@@ -28,15 +28,15 @@ def numba_node_force_blist(
         xi = np.sqrt(xi_x**2 + xi_y**2 + xi_z**2)
         y = np.sqrt(xi_eta_x**2 + xi_eta_y**2 + xi_eta_z**2)
         stretch = (y - xi) / xi
-        bond_damage_tmp = bond_damage_PMB(
+        bond_damage_temp = bond_damage_PMB(
             stretch, sc, bond_damage[global_id])
         # bond_damage_tmp = bond_damage_trilinear(
         #     stretch, sc[0], sc[1], sc[2], bond_damage[global_id], beta=0.25)
         # bond_damage = bond_damage_sigmoid(
         #     global_size, stretch, sc, sigma, bond_damage)
-        bond_damage[global_id] = bond_damage_tmp
+        bond_damage[global_id] = bond_damage_temp
         f = stretch * bond_stiffness * (
-            1 - bond_damage_tmp) * volume[node_id_j]
+            1.0 - bond_damage_temp) * volume[node_id_j]
         f_x = f[0] * xi_eta_x / y
         f_y = f[1] * xi_eta_y / y
         f_z = f[2] * xi_eta_z / y
@@ -64,11 +64,11 @@ def numba_node_force_blist(
     # Not sure if this is a good idea
     # node_force[force_bc_indices] += force_bc_magnitude * force_bc_values[
     #     force_bc_indices]
-    return node_force
+    return node_force, bond_damage
 
 
 @njit
-def numba_damageSS(global_size, blist, nnodes, bond_damage, family):
+def numba_damage(global_size, blist, nnodes, bond_damage, family):
     """
     Calculate the damage of each node.
     """
@@ -79,8 +79,9 @@ def numba_damageSS(global_size, blist, nnodes, bond_damage, family):
     return damage / family
 
 
+# TODO: This does not work, for some reason
 @njit
-def numba_damage(global_size, blist, nnodes, bond_damage, family):
+def numba_damageSS(global_size, blist, nnodes, bond_damage, family):
     neighbors = np.zeros(nnodes)
     for global_id in prange(global_size):
         node_id_i = blist[global_id, 0]
@@ -104,4 +105,3 @@ def numba_damage(global_size, blist, nnodes, bond_damage, family):
 
 #     damage = 1 - (unbroken_bonds / family)
 #     return damage
-

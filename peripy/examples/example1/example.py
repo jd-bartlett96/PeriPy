@@ -12,7 +12,9 @@ import numpy as np
 import pathlib
 from peripy import Model
 from peripy.model import initial_crack_helper
-from peripy.integrators import EulerCL, Euler, EulerNumba_nlist, EulerNumba_blist, EulerNumba_blist_unfused
+from peripy.integrators import (
+    EulerCL, Euler, EulerNumba_nlist,
+    EulerNumba_blist, EulerNumba_blist_unfused)
 from pstats import SortKey, Stats
 
 
@@ -83,10 +85,10 @@ def main():
     if args.opencl:
         # The :class:`peripy.integrators.EulerCL` class is the OpenCL
         # implementation of the explicit Euler integration scheme.
-        integrator = EulerCL(dt=1e-3)
+        #integrator = EulerCL(dt=1e-3)
         #integrator = EulerNumba_blist(dt=1e-3)
         #integrator = EulerNumba_blist_unfused(dt=1e-3)
-        #integrator = EulerNumba_nlist(dt=1e-3)
+        integrator = EulerNumba_nlist(dt=1e-3)
     else:
         # The :class:`peripy.integrators.Euler` class is the cython
         # implementation of the explicit Euler integration scheme.
