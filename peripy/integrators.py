@@ -966,7 +966,8 @@ class EulerNumba_blist(Integrator):
         self.nbonds = len(self.blist)
 
         # Alternative implementation in Numba
-        self.bond_damage = np.empty(self.nbonds)
+        self.bond_damage = np.zeros(self.nbonds)
+        self.force_0 = np.zeros(self.nnodes, self.degrees_freedom)
 
     def _build_special(self):
         """Build OpenCL kernels special to the integrator."""
@@ -976,8 +977,8 @@ class EulerNumba_blist(Integrator):
         """Calculate the force due to bonds acting on each node."""
         return numba_node_force_blist(
             self.volume, self.bond_stiffness, self.critical_stretch,
-            self.bond_damage, self.nbonds, self.blist, u, self.coords,
-            self.force,
+            self.bond_damage, self.bond_force, self.nbonds, self.blist, u,
+            self.coords, self.force_0.copy(),
             self.force_bc_values, self.force_bc_types, force_bc_magnitude)
 
     def _update_displacement(self, u, force, displacement_bc_magnitude):
