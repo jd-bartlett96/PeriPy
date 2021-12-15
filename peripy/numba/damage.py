@@ -4,8 +4,7 @@ import numpy as np
 
 
 @njit
-def bond_damage_PMB(
-        stretch, sc, bond_damage):
+def bond_damage_PMB(stretch, sc, bond_damage):
     """
     Calculate the bond softening factors for the trilinear model.
 
@@ -35,8 +34,7 @@ def bond_damage_PMB(
 
 
 @njit
-def bond_damage_sigmoid(
-        stretch, sc, sigma, bond_damage):
+def bond_damage_sigmoid(stretch, sc, sigma, bond_damage):
     """
     Calculate the bond softening factors for the sigmoid model.
 
@@ -49,8 +47,7 @@ def bond_damage_sigmoid(
 
 
 @njit
-def bond_damage_trilinear(
-        stretch, s0, s1, sc, bond_damage, beta=0.25):
+def bond_damage_trilinear(stretch, s0, s1, sc, bond_damage, beta=0.25):
     """
     Calculate the bond softening factors for the trilinear model.
 
@@ -88,8 +85,7 @@ def bond_damage_trilinear(
 
 
 @njit
-def bond_damage_exponential(
-        stretch, s0, sc, bond_damage, k, alpha):
+def bond_damage_exponential(stretch, s0, sc, bond_damage, k, alpha):
     """
     Calculate the bond softening factors for the trilinear model.
 

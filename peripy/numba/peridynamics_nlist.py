@@ -1,6 +1,7 @@
 import numpy as np
 from numba import njit, prange
-from .damage import bond_damage_PMB
+from .damage import (
+    bond_damage_PMB, bond_damage_trilinear)
 # TODO: Is math.sqrt faster than np.sqrt?
 # TODO: Initialising deformed_X, _Y, _Z every iteration is expensive
 # TODO: then have deformed_X as input arguments using .copy()
@@ -24,7 +25,7 @@ def bond_length_nlist(nnodes, max_neigh, nlist, r0, l0):
 
 @njit(parallel=True)
 def numba_node_force_nlist(
-        volume, bond_stiffness, sc, bond_damage,
+        volume, bond_stiffness, sc, bond_damage, bond_force,
         nnodes, nlist, u, r0, node_force, max_neigh,
         force_bc_values=None, force_bc_types=None, force_bc_magnitude=None):
     """
@@ -38,36 +39,35 @@ def numba_node_force_nlist(
             # Access node within node_id_i's horizon with corresponding
             # node_id_j
             node_id_j = nlist[node_id_i, j]
-            local_cache_x = np.zeros(max_neigh)
-            local_cache_y = local_cache_x.copy()
-            local_cache_z = local_cache_x.copy()
             # If bond is not broken
             if (node_id_j != -1):
-                xi_x = r0[node_id_j, 0] - r0[node_id_i, 0]              # initial separtion in each dirn
+                xi_x = r0[node_id_j, 0] - r0[node_id_i, 0]
                 xi_y = r0[node_id_j, 1] - r0[node_id_i, 1]
                 xi_z = r0[node_id_j, 2] - r0[node_id_i, 2]
-                xi_eta_x = u[node_id_j, 0] - u[node_id_i, 0] + xi_x     # final separation in each dirn
+                xi_eta_x = u[node_id_j, 0] - u[node_id_i, 0] + xi_x
                 xi_eta_y = u[node_id_j, 1] - u[node_id_i, 1] + xi_y
                 xi_eta_z = u[node_id_j, 2] - u[node_id_i, 2] + xi_z
-                xi = np.sqrt(xi_x**2 + xi_y**2 + xi_z**2)               # absolute original separation - could this be done once and stored?
-                y = np.sqrt(xi_eta_x**2 + xi_eta_y**2 + xi_eta_z**2)    # absolute final separation
-                stretch = (y - xi) / xi                                 # absolute strain
+                xi = np.sqrt(xi_x**2 + xi_y**2 + xi_z**2)
+                y = np.sqrt(xi_eta_x**2 + xi_eta_y**2 + xi_eta_z**2)
+                stretch = (y - xi) / xi
                 # TODO: A way to switch out different damage laws might be with a lambda function or factory or kwarg
                 bond_damage[node_id_i, j] = bond_damage_PMB(
                     stretch, sc, bond_damage[node_id_i, j])
                 # bond_damage = bond_damage_sigmoid(
                 #     global_size, stretch, sc, sigma, bond_damage)
+                # bond_damage[node_id_i, j] = bond_damage_trilinear(
+                #     stretch, sc[0], sc[1], sc[2], bond_damage[node_id_i, j],
+                #     beta=0.25)
                 f = stretch * bond_stiffness * (
                     1 - bond_damage[node_id_i, j]) * volume[node_id_j]
-
-                local_cache_x[j] = f * xi_eta_x / y
-                local_cache_y[j] = f * xi_eta_y / y
-                local_cache_z[j] = f * xi_eta_z / y
-        # Add reduced force to particle node_id_i
-        node_force[node_id_i, 0] = np.sum(local_cache_x)
-        node_force[node_id_i, 1] = np.sum(local_cache_y)
-        node_force[node_id_i, 2] = np.sum(local_cache_z)
+                bond_force[node_id_i, j, 0] = f * xi_eta_x / y
+                bond_force[node_id_i, j, 1] = f * xi_eta_y / y
+                bond_force[node_id_i, j, 2] = f * xi_eta_z / y
+    # TODO: these operations could also be done within the outer for loop
+    # Add reduced force to particle node_id_i
+    node_force = np.sum(bond_force, axis=1)
     # Neumann boundary conditions
+    # (unroll catesian loop because np.where does not support 2D indexing?)
     node_force[:, 0] = np.where(
         force_bc_types[:, 0] == 0,
         node_force[:, 0],

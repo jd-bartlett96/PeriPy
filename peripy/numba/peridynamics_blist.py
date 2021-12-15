@@ -1,3 +1,4 @@
+from numba.np.ufunc import parallel
 import numpy as np
 from numba import njit, prange
 from peripy.numba.damage import (
@@ -9,7 +10,7 @@ from peripy.numba.damage import (
 
 @njit(parallel=True)
 def numba_node_force_blist(
-        volume, bond_stiffness, sc, bond_damage,
+        volume, bond_stiffness, sc, bond_damage, bond_force,
         global_size, blist, u, r0, node_force, force_bc_values,
         force_bc_types, force_bc_magnitude):
     """
@@ -30,6 +31,7 @@ def numba_node_force_blist(
         stretch = (y - xi) / xi
         bond_damage_temp = bond_damage_PMB(
             stretch, sc, bond_damage[global_id])
+        # TODO: clearly need a better way to switch between functions
         # bond_damage_tmp = bond_damage_trilinear(
         #     stretch, sc[0], sc[1], sc[2], bond_damage[global_id], beta=0.25)
         # bond_damage = bond_damage_sigmoid(
@@ -37,17 +39,17 @@ def numba_node_force_blist(
         bond_damage[global_id] = bond_damage_temp
         f = stretch * bond_stiffness * (
             1.0 - bond_damage_temp) * volume[node_id_j]
-        f_x = f[0] * xi_eta_x / y
-        f_y = f[1] * xi_eta_y / y
-        f_z = f[2] * xi_eta_z / y
-        node_force[node_id_i, 0] += f_x
-        node_force[node_id_j, 0] -= f_x
-        node_force[node_id_i, 1] += f_y
-        node_force[node_id_j, 1] -= f_y
-        node_force[node_id_i, 2] += f_z
-        node_force[node_id_j, 2] -= f_z
-
+        bond_force[global_id, 0] = f * xi_eta_x / y
+        bond_force[global_id, 1] = f * xi_eta_y / y
+        bond_force[global_id, 2] = f * xi_eta_z / y
+    for global_id in range(global_size):
+        node_id_i = blist[global_id, 0]
+        node_id_j = blist[global_id, 1]
+        # Newton's 3rd law, assuming that bonds are not counted twice
+        node_force[node_id_i, :] += bond_force[global_id, :]
+        node_force[node_id_j, :] -= bond_force[global_id, :]
     # Neumann boundary conditions
+    # (unroll catesian loop because np.where does not support 2D indexing?)
     node_force[:, 0] = np.where(
         force_bc_types[:, 0] == 0,
         node_force[:, 0],
@@ -60,48 +62,40 @@ def numba_node_force_blist(
         force_bc_types[:, 2] == 0,
         node_force[:, 2],
         node_force[:, 2] + force_bc_magnitude * force_bc_values[:, 2])
-
-    # Not sure if this is a good idea
-    # node_force[force_bc_indices] += force_bc_magnitude * force_bc_values[
-    #     force_bc_indices]
     return node_force, bond_damage
 
 
-@njit
+@njit(parallel=True)
 def numba_damage(global_size, blist, nnodes, bond_damage, family):
     """
     Calculate the damage of each node.
     """
     damage = np.zeros(nnodes)
-    for global_id in prange(global_size):
+    for global_id in range(global_size):
         node_id_i = blist[global_id, 0]
         damage[node_id_i] += bond_damage[global_id]
     return damage / family
 
 
-# TODO: This does not work, for some reason
-@njit
-def numba_damageSS(global_size, blist, nnodes, bond_damage, family):
-    neighbors = np.zeros(nnodes)
-    for global_id in prange(global_size):
-        node_id_i = blist[global_id, 0]
-        if bond_damage[global_id] != 1.0:
-            neighbors[node_id_i] += 1
-    return 1 - neighbors / family
+# TODO: test it
+# @njit(parallel=True)
+# def numba_damage(global_size, blist, nnodes, bond_damage, family):
+#     neighbors = np.zeros(nnodes)
+#     for global_id in range(global_size):
+#         node_id_i = blist[global_id, 0]
+#         if bond_damage[global_id] != 1.0:
+#             neighbors[node_id_i] += 1
+#     return 1 - neighbors / family
 
 
-# TODO: work the post crack damage correctly
+# TODO: test it
 # @njit
 # def numba_damage(family, nnodes, blist, bond_damage):
-
 #     unbroken_bonds = np.zeros(nnodes)
-
-#     for kBond, bond in enumerate(blist):
+#     for k, bond in enumerate(blist):
 #         node_i = bond[0]
 #         node_j = bond[1]
-
-#         unbroken_bonds[node_i] = unbroken_bonds[node_i] + bond_damage[kBond]
-#         unbroken_bonds[node_j] = unbroken_bonds[node_j] + bond_damage[kBond]
-
+#         unbroken_bonds[node_i] = unbroken_bonds[node_i] + bond_damage[k]
+#         unbroken_bonds[node_j] = unbroken_bonds[node_j] + bond_damage[k]
 #     damage = 1 - (unbroken_bonds / family)
 #     return damage

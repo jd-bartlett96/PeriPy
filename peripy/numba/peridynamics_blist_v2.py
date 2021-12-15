@@ -23,75 +23,51 @@ def bond_length_blist(global_size, blist, r0, l0):
 
 @njit
 def reduction_blist(
-        nnodes, blist, bond_force_x, bond_force_y, bond_force_z):
-    node_force = np.zeros((nnodes, 3), dtype=np.float64)
+        nnodes, blist, bond_force, node_force):
     for k, bond in enumerate(blist):
         node_i = bond[0]
         node_j = bond[1]
-        # x-component
-        node_force[node_i, 0] += bond_force_x[k]
-        node_force[node_j, 0] -= bond_force_x[k]
-        # y-component
-        node_force[node_i, 1] += bond_force_y[k]
-        node_force[node_j, 1] -= bond_force_y[k]
-        # z-component
-        node_force[node_i, 2] += bond_force_z[k]
-        node_force[node_j, 2] -= bond_force_z[k]
+        node_force[node_i, :] += bond_force[node_i, :]
+        node_force[node_j, :] -= bond_force[node_j, :]
     return node_force
 
 
 @njit(parallel=True)
-def numba_stretch(global_size, blist, u, r0, l0):
+def numba_stretch(global_size, blist, u, r0, l0, xi_eta):
     """
     The bond lengths are precalculated.
     """
     # deformed coordinates
     r = u + r0
-    # containers for stretches in cartesian directions
-    xi_eta_x = np.zeros(global_size, dtype=np.float64)
-    xi_eta_y = np.zeros(global_size, dtype=np.float64)
-    xi_eta_z = np.zeros(global_size, dtype=np.float64)
     # for each bond in blist
     for global_id in prange(global_size):
         node_id_i = blist[global_id, 0]
         node_id_j = blist[global_id, 1]
-        xi_eta_x[global_id] = r[node_id_j, 0] - r[node_id_i, 0]
-        xi_eta_y[global_id] = r[node_id_j, 1] - r[node_id_i, 1]
-        xi_eta_z[global_id] = r[node_id_j, 2] - r[node_id_i, 2]
-    y = np.sqrt(xi_eta_x**2 + xi_eta_y**2 + xi_eta_z**2)
-    return xi_eta_x, xi_eta_y, xi_eta_z, y, (y - l0) / l0
+        xi_eta[global_id, :] = r[node_id_j, :] - r[node_id_i, :]
+    y = np.sqrt(xi_eta[:, 0]**2 + xi_eta[:, 1]**2 + xi_eta[:, 2]**2)
+    return xi_eta, y, (y - l0) / l0
 
 
 @njit(nogil=True, parallel=True)
 def numba_bond_force(
-        bond_stiffness, bond_damage, stretch, volume,
-        xi_eta_x, xi_eta_y, xi_eta_z, l):
-    bond_force_x = (bond_stiffness * (1 - bond_damage) * stretch
-                    * volume * (xi_eta_x / l))
-    bond_force_y = (bond_stiffness * (1 - bond_damage) * stretch
-                    * volume * (xi_eta_y / l))
-    bond_force_z = (bond_stiffness * (1 - bond_damage) * stretch
-                    * volume * (xi_eta_z / l))
-    return bond_force_x, bond_force_y, bond_force_z
+        bond_stiffness, bond_damage, bond_force, stretch, volume,
+        xi_eta, l):
+    bond_force[:, :] = (bond_stiffness * (1 - bond_damage[:]) * stretch[:]
+                    * volume[:] * (xi_eta[:, :] / l[:]))
+    return bond_force
 
 
 @njit
 def numba_reduce_force(
-    node_force, blist, bond_force_x, bond_force_y, bond_force_z,
+    node_force, blist, bond_force,
     force_bc_types, force_bc_values, force_bc_magnitude):
     for k, bond in enumerate(blist):
         node_i = bond[0]
         node_j = bond[1]
-        # x-component
-        node_force[node_i, 0] += bond_force_x[k]
-        node_force[node_j, 0] -= bond_force_x[k]
-        # y-component
-        node_force[node_i, 1] += bond_force_y[k]
-        node_force[node_j, 1] -= bond_force_y[k]
-        # z-component
-        node_force[node_i, 2] += bond_force_z[k]
-        node_force[node_j, 2] -= bond_force_z[k]
+        node_force[node_i, :] += bond_force[k, :]
+        node_force[node_j, :] -= bond_force[k, :]
     # Neumann boundary conditions
+    # (unroll catesian loop because np.where does not support 2D indexing?)
     node_force[:, 0] = np.where(
         force_bc_types[:, 0] == 0,
         node_force[:, 0],

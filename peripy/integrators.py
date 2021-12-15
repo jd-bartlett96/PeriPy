@@ -960,7 +960,7 @@ class EulerNumba_blist(Integrator):
 
         # Create bond list
         self.blist = [
-            [i,j] for i, nlist_i in enumerate(self.nlist)
+            [i, j] for i, nlist_i in enumerate(self.nlist)
             for j in nlist_i if i < j]
         self.blist = np.array(self.blist, dtype=np.intc)
         self.nbonds = len(self.blist)
