@@ -935,6 +935,7 @@ class EulerNumba_blist(Integrator):
         self.densities = densities
         self.stiffness_corrections = stiffness_corrections
         self.max_neighbours = max_neighbours
+        self.degrees_freedom = degrees_freedom
         # self.nbond_types = nbond_types  # TODO needed
 
     def _create_special_buffers(self):
@@ -966,6 +967,8 @@ class EulerNumba_blist(Integrator):
         self.nbonds = len(self.blist)
 
         # Initiate arrays to zero
+        self.bond_force = np.zeros(
+            (self.nbonds, self.degrees_freedom), dtype=np.float64)
         self.node_force = np.zeros(
             (self.nnodes, self.degrees_freedom), dtype=np.float64)
         self.bond_damage = np.zeros(
@@ -979,8 +982,8 @@ class EulerNumba_blist(Integrator):
         """Calculate the force due to bonds acting on each node."""
         return numba_node_force_blist(
             self.volume, self.bond_stiffness, self.critical_stretch,
-            self.bond_damage, self.bond_force, self.nbonds, self.blist, u,
-            self.coords, self.node_force.copy(),
+            self.bond_damage, self.bond_force.copy(), self.nbonds, self.blist,
+            u, self.coords, self.node_force.copy(),
             self.force_bc_values, self.force_bc_types, force_bc_magnitude)
 
     def _update_displacement(self, u, force, displacement_bc_magnitude):
