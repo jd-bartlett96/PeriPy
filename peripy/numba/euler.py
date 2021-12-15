@@ -1,4 +1,3 @@
-from numba import njit
 from numba import njit, prange
 import numpy as np
 
@@ -24,6 +23,7 @@ def update_displacement(
     return u
 
 
+# TODO: Need to unroll cartesian loop?
 @njit(parallel=True)
 def update_displacementss(
         nnodes, force, u, bc_types, bc_values, displacement_bc_magnitude, dt):
