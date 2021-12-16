@@ -68,18 +68,18 @@ def numba_node_force_nlist(
     node_force = np.sum(bond_force, axis=1)
     # Neumann boundary conditions
     # (unroll catesian loop because np.where does not support 2D indexing?)
-    node_force[:, 0] = np.where(
-        force_bc_types[:, 0] == 0,
-        node_force[:, 0],
-        node_force[:, 0] + force_bc_magnitude * force_bc_values[:, 0])
-    node_force[:, 1] = np.where(
-        force_bc_types[:, 1] == 0,
-        node_force[:, 1],
-        node_force[:, 1] + force_bc_magnitude * force_bc_values[:, 1])
-    node_force[:, 2] = np.where(
-        force_bc_types[:, 2] == 0,
-        node_force[:, 2],
-        node_force[:, 2] + force_bc_magnitude * force_bc_values[:, 2])
+    # node_force[:, 0] = np.where(
+    #     force_bc_types[:, 0] == 0,
+    #     node_force[:, 0],
+    #     node_force[:, 0] + force_bc_magnitude * force_bc_values[:, 0])
+    # node_force[:, 1] = np.where(
+    #     force_bc_types[:, 1] == 0,
+    #     node_force[:, 1],
+    #     node_force[:, 1] + force_bc_magnitude * force_bc_values[:, 1])
+    # node_force[:, 2] = np.where(
+    #     force_bc_types[:, 2] == 0,
+    #     node_force[:, 2],
+    #     node_force[:, 2] + force_bc_magnitude * force_bc_values[:, 2])
     return node_force, bond_damage
 
 

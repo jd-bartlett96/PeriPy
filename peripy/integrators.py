@@ -384,8 +384,6 @@ class Euler(Integrator):
                              "material type and bond_stiffness.")
         self.nlist = nlist
         self.n_neigh = n_neigh
-        print(self.n_neigh)
-        assert 0
         self.bond_stiffness = bond_stiffness
         self.critical_stretch = critical_stretch
         self.u = u
@@ -451,11 +449,6 @@ class Euler(Integrator):
 
     def _break_bonds(self, u, nlist, n_neigh):
         """Break bonds which have exceeded the critical strain."""
-        # reak_bonds(r, r0, nlist, n_neigh, critical_strain)
-        print(np.shape(nlist))
-        print(np.shape(n_neigh))
-        print(np.shape(self.critical_stretch))
-        assert 0
         break_bonds(self.coords+u, self.coords, nlist, n_neigh,
                     self.critical_stretch)
 
@@ -792,7 +785,8 @@ class EulerNumba_nlist(Integrator):
         self.node_force = np.zeros(
             (self.nnodes, self.degrees_freedom), dtype=np.float64)
         self.bond_force = np.zeros(
-            (self.nnodes, self.degrees_freedom), dtype=np.float64)
+            (self.nnodes, self.max_neighbours, self.degrees_freedom),
+            dtype=np.float64)
         self.bond_damage = np.zeros(
             (self.nnodes, self.max_neighbours), dtype=np.float64)
 
@@ -800,18 +794,15 @@ class EulerNumba_nlist(Integrator):
         """Build OpenCL kernels special to the integrator."""
         # There are none
 
-    volume, bond_stiffness, sc, bond_damage, bond_force,
-    nnodes, nlist, u, r0, node_force, max_neigh,
-    force_bc_values=None, force_bc_types=None, force_bc_magnitude=None):
-
     def _node_force(self, force_bc_magnitude, u):
         """Calculate the force due to bonds acting on each node."""
-        return numba_node_force_nlist(
+        force = numba_node_force_nlist(
             self.volume, self.bond_stiffness, self.critical_stretch,
             self.bond_damage, self.bond_force.copy(),
             self.nnodes, self.nlist, u, self.coords,
             self.node_force.copy(), self.max_neighbours, self.force_bc_values,
             self.force_bc_types, force_bc_magnitude)
+        return force
 
     def _update_displacement(self, u, force, displacement_bc_magnitude):
         return euler.update_displacement(self.nnodes,

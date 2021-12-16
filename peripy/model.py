@@ -599,14 +599,17 @@ class Model(object):
         family = [len(neighbour_list[i]) for i in range(nnodes)]
         family = np.array(family, dtype=np.intc)
 
-        if context:
-            max_neighbours = np.intc(1 << (int(family.max() - 1)).bit_length())
-            nlist = -1.*np.ones((nnodes, max_neighbours), dtype=np.intc)
-        else:
-            # TODO: need to depricate this
-            # but changing this will break cython regression tests 
-            max_neighbours = family.max()
-            nlist = np.zeros((nnodes, max_neighbours), dtype=np.intc)
+        max_neighbours = np.intc(1 << (int(family.max() - 1)).bit_length())
+        nlist = -1.*np.ones((nnodes, max_neighbours), dtype=np.intc)
+
+        # if context:
+        #     max_neighbours = np.intc(1 << (int(family.max() - 1)).bit_length())
+        #     nlist = -1.*np.ones((nnodes, max_neighbours), dtype=np.intc)
+        # else:
+        #     # TODO: need to depricate this - can do it in a way that still passes cython tests?
+        #     # but changing this will break cython regression tests 
+        #     max_neighbours = family.max()
+        #     nlist = np.zeros((nnodes, max_neighbours), dtype=np.intc)
         
         for i in range(nnodes):
             nlist[i][:family[i]] = neighbour_list[i]
