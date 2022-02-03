@@ -62,6 +62,8 @@ __kernel void
 	// Access local node within node_id_i's horizon with corresponding node_id_j,
 	const int node_id_j = nlist[global_id];
 
+    double xi_eta_x; double xi_eta_y; double xi_eta_z; double s; double y;
+
     // Evaluate Dilation
 	// If bond is not broken
 	if (node_id_j != -1) {
@@ -69,13 +71,13 @@ __kernel void
 		const double xi_y = r0[3 * node_id_j + 1] - r0[3 * node_id_i + 1];
 		const double xi_z = r0[3 * node_id_j + 2] - r0[3 * node_id_i + 2];
 
-		const double xi_eta_x = u[3 * node_id_j + 0] - u[3 * node_id_i + 0] + xi_x;
-		const double xi_eta_y = u[3 * node_id_j + 1] - u[3 * node_id_i + 1] + xi_y;
-		const double xi_eta_z = u[3 * node_id_j + 2] - u[3 * node_id_i + 2] + xi_z;
+		xi_eta_x = u[3 * node_id_j + 0] - u[3 * node_id_i + 0] + xi_x;
+		xi_eta_y = u[3 * node_id_j + 1] - u[3 * node_id_i + 1] + xi_y;
+		xi_eta_z = u[3 * node_id_j + 2] - u[3 * node_id_i + 2] + xi_z;
 
 		const double xi = sqrt(xi_x * xi_x + xi_y * xi_y + xi_z * xi_z);
-		const double y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
-		const double s = (y -  xi)/ xi;
+		y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
+		s = (y -  xi)/ xi;
 
         // Check for state of bonds here, and break it if necessary
 		if (s < critical_stretch) {
@@ -103,23 +105,11 @@ __kernel void
         barrier(CLK_LOCAL_MEM_FENCE);
     }
 
-    double const dil = local_cache_x[0];
+    const double dil = local_cache_x[0];
 
     //Evaluate forces
     // If bond is not broken
 	if (node_id_j != -1) {
-		const double xi_x = r0[3 * node_id_j + 0] - r0[3 * node_id_i + 0];
-		const double xi_y = r0[3 * node_id_j + 1] - r0[3 * node_id_i + 1];
-		const double xi_z = r0[3 * node_id_j + 2] - r0[3 * node_id_i + 2];
-
-		const double xi_eta_x = u[3 * node_id_j + 0] - u[3 * node_id_i + 0] + xi_x;
-		const double xi_eta_y = u[3 * node_id_j + 1] - u[3 * node_id_i + 1] + xi_y;
-		const double xi_eta_z = u[3 * node_id_j + 2] - u[3 * node_id_i + 2] + xi_z;
-
-		const double xi = sqrt(xi_x * xi_x + xi_y * xi_y + xi_z * xi_z);
-		const double y = sqrt(xi_eta_x * xi_eta_x + xi_eta_y * xi_eta_y + xi_eta_z * xi_eta_z);
-		const double s = (y -  xi)/ xi;
-
         // Check for state of bonds here, and break it if necessary
 		if (s < critical_stretch) {
             const double cx = xi_eta_x / y;
