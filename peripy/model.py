@@ -7,6 +7,8 @@ from .correction import (set_volume_correction,
                          set_precise_surface_correction,
                          set_micromodulus_function)
 from collections import namedtuple
+import math
+from numba import cuda
 import numpy as np
 import pathlib
 from tqdm import trange
@@ -48,7 +50,8 @@ class Model(object):
                  is_tip=None, density=None, bond_types=None,
                  stiffness_corrections=None,
                  surface_correction=None, volume_correction=None,
-                 micromodulus_function=None, node_radius=None):
+                 micromodulus_function=None, node_radius=None, dx=None,
+                 bbox=None):
         """
         Create a :class:`Model` object.
 
@@ -227,7 +230,7 @@ class Model(object):
             raise DimensionalityError(dimensions)
 
         # Read coordinates and connectivity from mesh file
-        self._read_mesh(mesh_file, transfinite)
+        self._read_mesh(mesh_file, transfinite, dx, bbox)
 
         # Calculate the volume for each node, if None is provided
         if volume is None:
@@ -478,7 +481,7 @@ class Model(object):
             self.bc_values, self.force_bc_types, self.force_bc_values,
             self.stiffness_corrections, self.bond_types, self.densities)
 
-    def _read_mesh(self, filename, transfinite):
+    def _read_mesh(self, filename, transfinite, dx, bbox):
         """
         Read the model's nodes, connectivity and boundary from a mesh file.
 
@@ -487,20 +490,46 @@ class Model(object):
         :returns: None
         :rtype: NoneType
         """
-        mesh = meshio.read(filename)
 
-        # Get coordinates, encoded as mesh points
-        self.coords = np.array(mesh.points, dtype=np.float64)
-        self.nnodes = self.coords.shape[0]
+        if filename is None:
+            if not transfinite:
+                raise TypeError("If no mesh file is provided, model must be"
+                    "flagged as transfinite")
+            if dx is None or bbox is None:
+                raise TypeError("If no mesh file is provided, model must be"
+                    "provided a dx value and bounding box")
+            dim = len(bbox)
+            NX = int(np.round((bbox[0][1] - bbox[0][0])/dx))+1
+            NY = int(np.round((bbox[1][1] - bbox[1][0])/dx))+1
+            xs = np.linspace(bbox[0][0],bbox[0][1],NX)
+            ys = np.linspace(bbox[1][0],bbox[1][1],NY)
+            if dim==3:
+                NZ = int(np.round((bbox[2][1] - bbox[2][0])/dx))+1
+                zs = np.linspace(bbox[2][0],bbox[2][1],NZ)
+            if dim<3:
+                XS,YS = np.meshgrid(xs, ys)
+                coords = np.hstack([XS.reshape([-1,1]), YS.reshape([-1,1])])
+            else:
+                XS,YS,ZS = np.meshgrid(xs, ys, zs)
+                coords = np.hstack([XS.reshape([-1,1]), YS.reshape([-1,1]), ZS.reshape([-1,1])])
+            self.coords = coords
+            self.nnodes = coords.shape[0]
+            
+        else:
+            mesh = meshio.read(filename)
 
-        if not transfinite:
-            # Get connectivity, mesh triangle cells
-            self.mesh_connectivity = mesh.cells_dict[
-                self.mesh_elements.connectivity
-                ]
+            # Get coordinates, encoded as mesh points
+            self.coords = np.array(mesh.points, dtype=np.float64)
+            self.nnodes = self.coords.shape[0]
 
-            # Get boundary connectivity, mesh lines
-            self.mesh_boundary = mesh.cells_dict[self.mesh_elements.boundary]
+            if not transfinite:
+                # Get connectivity, mesh triangle cells
+                self.mesh_connectivity = mesh.cells_dict[
+                    self.mesh_elements.connectivity
+                    ]
+
+                # Get boundary connectivity, mesh lines
+                self.mesh_boundary = mesh.cells_dict[self.mesh_elements.boundary]
 
     def write_mesh(self, filename, damage=None, displacements=None,
                    file_format=None):
@@ -533,6 +562,22 @@ class Model(object):
             file_format=file_format
             )
 
+    @cuda.jit('void(float64, float64[:,:], int32[:,:])')
+    def _d_set_neighbour_list(horizon, d_coord, d_conn):
+        i = cuda.grid(1)
+
+        if i<d_coord.shape[1]:
+            n = 0
+            xi,yi,zi = d_coord[:,i]
+            for j in range(d_coord.shape[1]):
+                if i!=j:
+                    xj,yj,zj = d_coord[:,j]
+                    if math.sqrt((xj-xi)**2 + (yj-yi)**2 + (zj-zi)**2)<=horizon:
+                        d_conn[n,i] = j
+                        n += 1
+                        if n >= d_conn.shape[0]:
+                            return
+
     def _set_neighbour_list(self, coords, horizon, nnodes,
                             initial_crack=None, context=None):
         """
@@ -561,29 +606,45 @@ class Model(object):
         :rtype: tuple(:class:`numpy.ndarray`, :class:`numpy.ndarray`,
                       :class:`numpy.ndarray`, int)
         """
-        tree = neighbors.KDTree(coords, leaf_size=160)
-        neighbour_list = tree.query_radius(
-            coords, r=horizon)
-        # Remove identity values, as there is no bond between a node and itself
-        neighbour_list = [
-            neighbour_list[i][neighbour_list[i] != i]
-            for i in range(nnodes)]
+        # tree = neighbors.KDTree(coords, leaf_size=160)
+        # neighbour_list = tree.query_radius(
+        #     coords, r=horizon)
+        # # Remove identity values, as there is no bond between a node and itself
+        # neighbour_list = [
+        #     neighbour_list[i][neighbour_list[i] != i]
+        #     for i in range(nnodes)]
 
-        family = [len(neighbour_list[i]) for i in range(nnodes)]
-        family = np.array(family, dtype=np.intc)
+        # family = [len(neighbour_list[i]) for i in range(nnodes)]
+        # family = np.array(family, dtype=np.intc)
 
-        if context:
-            max_neighbours = np.intc(
-                1 << (int(family.max() - 1)).bit_length())
-            nlist = -1.*np.ones((nnodes, max_neighbours),
-                                dtype=np.intc)
-        else:
-            max_neighbours = family.max()
-            nlist = np.zeros((nnodes, max_neighbours), dtype=np.intc)
-        for i in range(nnodes):
-            nlist[i][:family[i]] = neighbour_list[i]
-        nlist = nlist.astype(np.intc)
-        n_neigh = family.copy()
+        # if context:
+        #     max_neighbours = np.intc(
+        #         1 << (int(family.max() - 1)).bit_length())
+        #     nlist = -1.*np.ones((nnodes, max_neighbours),
+        #                         dtype=np.intc)
+        # else:
+        #     max_neighbours = family.max()
+        #     nlist = np.zeros((nnodes, max_neighbours), dtype=np.intc)
+        # for i in range(nnodes):
+        #     nlist[i][:family[i]] = neighbour_list[i]
+        # nlist = nlist.astype(np.intc)
+        # n_neigh = family.copy()
+        
+        MXNB = 512 # Maximum possible number of neighbors
+        TPB = 32
+        NN = coords.shape[0]
+
+        conn = np.zeros((MXNB, NN), dtype = np.int32) - 1
+        d_coord = cuda.to_device(coords.T)
+        d_conn = cuda.to_device(conn) 
+
+        self._d_set_neighbour_list[(NN+TPB-1)//TPB, TPB](horizon, d_coord, d_conn)
+        nlist = d_conn.copy_to_host().T
+        df = np.sum(nlist<0,axis=1)
+        n_neigh = MXNB - df
+        family = n_neigh.copy()
+        max_neighbours = (np.max(family)+31)//32*32
+        nlist = nlist[:,:max_neighbours]
 
         if initial_crack is not None:
             if callable(initial_crack):
