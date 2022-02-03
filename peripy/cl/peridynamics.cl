@@ -122,13 +122,6 @@ __kernel void
 		    local_cache_y[local_id] = f * cy;
 		    local_cache_z[local_id] = f * cz;
 		}
-        else {
-            // bond is broken
-			nlist[global_id] = -1;  // Break the bond
-            local_cache_x[local_id] = 0.00;
-            local_cache_y[local_id] = 0.00;
-            local_cache_z[local_id] = 0.00;
-        }
     }
     // bond is broken
     else {
