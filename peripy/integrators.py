@@ -84,7 +84,7 @@ class Integrator(ABC):
     def build(
             self, nnodes, degrees_freedom, max_neighbours, coords, volume,
             family, bc_types, bc_values, force_bc_types, force_bc_values,
-            stiffness_corrections, bond_types, densities):
+            stiffness_corrections, bond_types, densities, state_based):
         """
         Build OpenCL programs.
 
@@ -106,7 +106,21 @@ class Integrator(ABC):
             self.context, kernel_source).build()
 
         # Build bond_force program
-        if (stiffness_corrections is None) and (bond_types is None):
+        if state_based:
+            self.bond_force_kernel = self.program.bond_force_spd
+            if (stiffness_corrections is None) and (bond_types is None):
+                stiffness_corrections = np.array([0], dtype=np.float64)
+                bond_types = np.array([0], dtype=np.intc)
+                self.stiffness_corrections_d = cl.Buffer(
+                    self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+                    hostbuf=stiffness_corrections)
+                self.bond_types_d = cl.Buffer(
+                    self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+                    hostbuf=bond_types)
+            else:
+                raise TypeError("Stiffness corrections and bond types have "
+                    "not been implemented for state-based peridynamics")
+        elif (stiffness_corrections is None) and (bond_types is None):
             self.bond_force_kernel = self.program.bond_force1
             # Placeholder buffers
             stiffness_corrections = np.array([0], dtype=np.float64)
@@ -190,7 +204,7 @@ class Integrator(ABC):
     def create_buffers(
             self, nlist, n_neigh, bond_stiffness, critical_stretch, plus_cs, u,
             ud, udd, force, body_force, damage, regimes, nregimes,
-            nbond_types):
+            nbond_types, mass_vec, bulk_mod, shear_mod):
         """
         Initialise the OpenCL buffers.
 
@@ -200,6 +214,9 @@ class Integrator(ABC):
         if (nbond_types == 1) and (nregimes == 1):
             self.bond_stiffness_d = np.float64(bond_stiffness)
             self.critical_stretch_d = np.float64(critical_stretch)
+            self.mass_vec_d = np.float64(mass_vec)
+            self.bulk_mod_d = np.float64(bulk_mod)
+            self.shear_mod_d = np.float64(shear_mod)
             # Placeholder buffers
             plus_cs = np.array([0], dtype=np.float64)
             regimes = np.array([0], dtype=np.intc)
@@ -268,7 +285,7 @@ class Integrator(ABC):
             force_bc_types_d, force_bc_values_d, stiffness_corrections_d,
             bond_types_d, regimes_d, plus_cs_d, local_mem_x, local_mem_y,
             local_mem_z, bond_stiffness_d, critical_stretch_d,
-            force_bc_magnitude, nregimes):
+            force_bc_magnitude, nregimes, mass_vec_d, bulk_mod_d, shear_mod_d):
         """Calculate the force due to bonds acting on each node."""
         queue = self.queue
         # Call kernel
@@ -279,7 +296,7 @@ class Integrator(ABC):
                 stiffness_corrections_d, bond_types_d, regimes_d, plus_cs_d,
                 local_mem_x, local_mem_y, local_mem_z, bond_stiffness_d,
                 critical_stretch_d, np.float64(force_bc_magnitude),
-                np.intc(nregimes))
+                np.intc(nregimes), mass_vec_d, bulk_mod_d, shear_mod_d)
         queue.finish()
 
     def write(self, u, ud, udd, force, body_force, damage, nlist, n_neigh):
@@ -351,7 +368,7 @@ class Euler(Integrator):
     def create_buffers(
             self, nlist, n_neigh, bond_stiffness, critical_stretch, plus_cs,
             u, ud, udd, force, body_force, damage, regimes, nregimes,
-            nbond_types):
+            nbond_types, mass_vec, bulk_mod, shear_mod):
         """
         Initiate arrays that are dependent on simulation parameters.
 
@@ -382,7 +399,7 @@ class Euler(Integrator):
     def build(
             self, nnodes, degrees_freedom, max_neighbours, coords, volume,
             family, bc_types, bc_values, force_bc_types, force_bc_values,
-            stiffness_corrections, bond_types, densities):
+            stiffness_corrections, bond_types, densities, state_based):
         """
         Initiate integrator arrays.
 
@@ -400,6 +417,9 @@ class Euler(Integrator):
         self.bc_values = bc_values
         self.force_bc_types = force_bc_types
         self.force_bc_values = force_bc_values
+        if state_based:
+            raise ValueError("State-based formulation is not supported"
+                " by this integrator, please use EulerCL instead")
         if bond_types is not None:
             raise ValueError("bond_types are not supported by this "
                              "integrator (expected {}, got {}), please use "
@@ -496,7 +516,8 @@ class EulerCL(Integrator):
             self.stiffness_corrections_d, self.bond_types_d, self.regimes_d,
             self.plus_cs_d, self.local_mem_x, self.local_mem_y,
             self.local_mem_z, self.bond_stiffness_d, self.critical_stretch_d,
-            force_bc_magnitude, self.nregimes)
+            force_bc_magnitude, self.nregimes, self.mass_vec_d, self.bulk_mod_d,
+            self.shear_mod_d)
 
         self._update_displacement(
             self.force_d, self.u_d, self.bc_types_d, self.bc_values_d,
@@ -598,7 +619,8 @@ class EulerCromerCL(Integrator):
             self.stiffness_corrections_d, self.bond_types_d, self.regimes_d,
             self.plus_cs_d, self.local_mem_x, self.local_mem_y,
             self.local_mem_z, self.bond_stiffness_d, self.critical_stretch_d,
-            force_bc_magnitude, self.nregimes)
+            force_bc_magnitude, self.nregimes, self.mass_vec_d, self.bulk_mod_d,
+            self.shear_mod_d)
 
         self._update_displacement(
             self.force_d, self.u_d, self.ud_d, self.udd_d, self.bc_types_d,
@@ -712,7 +734,8 @@ class VelocityVerletCL(Integrator):
             self.stiffness_corrections_d, self.bond_types_d, self.regimes_d,
             self.plus_cs_d, self.local_mem_x, self.local_mem_y,
             self.local_mem_z, self.bond_stiffness_d, self.critical_stretch_d,
-            force_bc_magnitude, self.nregimes)
+            force_bc_magnitude, self.nregimes, self.mass_vec_d, self.bulk_mod_d,
+            self.shear_mod_d)
 
         self._update_displacement(
             self.force_d, self.u_d, self.ud_d, self.udd_d, self.bc_types_d,

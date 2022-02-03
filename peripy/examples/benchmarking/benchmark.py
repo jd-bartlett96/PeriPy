@@ -118,6 +118,8 @@ def main():
     parser.add_argument('--dx', type=float, default=0.1)
     # The --profile argument generates profiling information for the example
     parser.add_argument('--profile', action='store_const', const=True)
+    # Sets the peridynamic formulation to state-based
+    parser.add_argument('--state_based', action='store_const', const=True)
     args = parser.parse_args()
 
     # Constants
@@ -140,7 +142,7 @@ def main():
             5 * strain_energy_release_rate, 6 * youngs_modulus * horizon), (
                 1. / 2))
     bulk_modulus = youngs_modulus / (3 * (1 - 2 * poisson_ratio))
-    bond_stiffness = (18.00 * bulk_modulus) / (np.pi * np.power(horizon, 4))
+    shear_modulus = youngs_modulus / (2 * (1 + poisson_ratio))
 
     if args.profile:
         profile = cProfile.Profile()
@@ -160,7 +162,8 @@ def main():
     # and written to the file at location "write_path_model"
     model = Model(
         None, integrator=integrator, horizon=horizon,
-        critical_stretch=critical_stretch, bond_stiffness=bond_stiffness,
+        critical_stretch=critical_stretch, bulk_modulus=bulk_modulus,
+        shear_modulus=shear_modulus,
         dimensions=3,
         is_density=is_density,
         is_displacement_boundary=is_displacement_boundary,
@@ -170,7 +173,8 @@ def main():
         transfinite = 1,
         volume_total = (bbox[0][1]-bbox[0][0])*(bbox[1][1]-bbox[1][0])*(bbox[2][1]-bbox[2][0]),
         dx = dx,
-        bbox = bbox
+        bbox = bbox,
+        state_based=args.state_based
         )
 
     # The force boundary condition magnitudes linearly increment in

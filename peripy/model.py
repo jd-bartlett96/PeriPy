@@ -42,16 +42,16 @@ class Model(object):
     """
 
     def __init__(self, mesh_file, integrator, horizon, critical_stretch,
-                 bond_stiffness, transfinite=0,
-                 volume_total=None, write_path=None, connectivity=None,
-                 family=None, volume=None, initial_crack=None, dimensions=2,
-                 is_density=None, is_bond_type=None,
-                 is_displacement_boundary=None, is_force_boundary=None,
-                 is_tip=None, density=None, bond_types=None,
-                 stiffness_corrections=None,
+                 bond_stiffness=None, bulk_modulus=None, shear_modulus=None, 
+                 transfinite=0, volume_total=None, write_path=None, 
+                 connectivity=None, family=None, volume=None, 
+                 initial_crack=None, dimensions=2, is_density=None, 
+                 is_bond_type=None, is_displacement_boundary=None, 
+                 is_force_boundary=None, is_tip=None, density=None, 
+                 bond_types=None, stiffness_corrections=None,
                  surface_correction=None, volume_correction=None,
                  micromodulus_function=None, node_radius=None, dx=None,
-                 bbox=None):
+                 bbox=None, state_based=False):
         """
         Create a :class:`Model` object.
 
@@ -228,6 +228,13 @@ class Model(object):
             self.mesh_elements = _mesh_elements_3d
         else:
             raise DimensionalityError(dimensions)
+
+        # Set peridynamics formulation
+        self.state_based = state_based
+        if state_based:
+            self.mass_vec = np.pi * horizon ** 4
+        else:
+            self.mass_vec = None
 
         # Read coordinates and connectivity from mesh file
         self._read_mesh(mesh_file, transfinite, dx, bbox)
@@ -416,6 +423,12 @@ class Model(object):
             def is_bond_type(x, y):
                 return 0
 
+        # Set material properties
+        self.bulk_modulus = bulk_modulus
+        self.shear_modulus = shear_modulus
+        if bond_stiffness is None:
+            bond_stiffness = (18.00 * bulk_modulus) / (np.pi * np.power(horizon, 4))
+
         # Set damage model
         (self.bond_stiffness,
          self.critical_stretch,
@@ -479,7 +492,8 @@ class Model(object):
             self.nnodes, self.degrees_freedom, self.max_neighbours,
             self.coords, self.volume, self.family, self.bc_types,
             self.bc_values, self.force_bc_types, self.force_bc_values,
-            self.stiffness_corrections, self.bond_types, self.densities)
+            self.stiffness_corrections, self.bond_types, self.densities, 
+            self.state_based)
 
     def _read_mesh(self, filename, transfinite, dx, bbox):
         """
@@ -1275,6 +1289,7 @@ class Model(object):
     def simulate(self, steps, u=None, ud=None, connectivity=None,
                  regimes=None, critical_stretch=None, bond_stiffness=None,
                  displacement_bc_magnitudes=None, force_bc_magnitudes=None,
+                 mass_vec=None, bulk_mod=None, shear_mod=None,
                  first_step=1, write=None,
                  write_path=None):
         """
@@ -1351,7 +1366,8 @@ class Model(object):
          write_path) = self._simulate_initialise(
              steps, first_step, write, regimes, u, ud,
              displacement_bc_magnitudes, force_bc_magnitudes, connectivity,
-             bond_stiffness, critical_stretch, write_path)
+             bond_stiffness, critical_stretch, mass_vec, bulk_mod, shear_mod,
+             write_path)
 
         for step in trange(first_step, first_step+steps,
                            desc="Simulation Progress", unit="steps"):
@@ -1448,7 +1464,8 @@ class Model(object):
     def _simulate_initialise(
             self, steps, first_step, write, regimes, u, ud,
             displacement_bc_magnitudes, force_bc_magnitudes, connectivity,
-            bond_stiffness, critical_stretch, write_path):
+            bond_stiffness, critical_stretch, mass_vec, bulk_mod,
+            shear_mod, write_path):
         """
         Initialise simulation variables.
 
@@ -1587,6 +1604,12 @@ class Model(object):
             plus_cs = self.plus_cs
             nbond_types = self.nbond_types
             nregimes = self.nregimes
+        if (mass_vec is None):
+            mass_vec = self.mass_vec
+        if (bulk_mod is None):
+            bulk_mod = self.bulk_modulus
+        if (shear_mod is None):
+            shear_mod = self.shear_modulus
         else:
             (bond_stiffness,
              critical_stretch,
@@ -1629,7 +1652,8 @@ class Model(object):
         # Initialise the OpenCL buffers
         self.integrator.create_buffers(
             nlist, n_neigh, bond_stiffness, critical_stretch, plus_cs, u, ud,
-            udd, force, body_force, damage, regimes, nregimes, nbond_types)
+            udd, force, body_force, damage, regimes, nregimes, nbond_types, 
+            mass_vec, bulk_mod, shear_mod)
 
         return (u, ud, udd, force, body_force, nlist, n_neigh,
                 displacement_bc_magnitudes, force_bc_magnitudes, damage, data,
