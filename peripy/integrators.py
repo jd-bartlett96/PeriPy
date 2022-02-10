@@ -96,6 +96,7 @@ class Integrator(ABC):
         self.degrees_freedom = degrees_freedom
         self.max_neighbours = max_neighbours
         self.densities = densities
+        self.state_based = state_based
 
         kernel_source = open(
             pathlib.Path(__file__).parent.absolute() /
@@ -107,7 +108,11 @@ class Integrator(ABC):
 
         # Build bond_force program
         if state_based:
+            self.dilation_kernel = self.program.dilation
             self.bond_force_kernel = self.program.bond_force_spd
+            self.dil_d = cl.Buffer(
+                self.context, mf.READ_ONLY | mf.COPY_HOST_PTR,
+                hostbuf=np.zeros(self.nnodes, dtype=np.float64))
             if (stiffness_corrections is None) and (bond_types is None):
                 stiffness_corrections = np.array([0], dtype=np.float64)
                 bond_types = np.array([0], dtype=np.intc)
@@ -289,14 +294,31 @@ class Integrator(ABC):
         """Calculate the force due to bonds acting on each node."""
         queue = self.queue
         # Call kernel
-        self.bond_force_kernel(
-                queue, (self.nnodes * self.max_neighbours,),
-                (self.max_neighbours,), u_d, force_d, body_force_d, r0_d,
-                vols_d, nlist_d, force_bc_types_d, force_bc_values_d,
-                stiffness_corrections_d, bond_types_d, regimes_d, plus_cs_d,
-                local_mem_x, local_mem_y, local_mem_z, bond_stiffness_d,
-                critical_stretch_d, np.float64(force_bc_magnitude),
-                np.intc(nregimes), mass_vec_d, bulk_mod_d, shear_mod_d)
+        if self.state_based:
+            self.dilation_kernel(
+                    queue, (self.nnodes * self.max_neighbours,),
+                    (self.max_neighbours,), u_d, r0_d, vols_d, self.dil_d, 
+                    nlist_d, local_mem_x, critical_stretch_d, mass_vec_d, bulk_mod_d, 
+                    shear_mod_d)
+            queue.finish()
+            self.bond_force_kernel(
+                    queue, (self.nnodes * self.max_neighbours,),
+                    (self.max_neighbours,), u_d, force_d, body_force_d, r0_d,
+                    vols_d, self.dil_d, nlist_d, force_bc_types_d, force_bc_values_d,
+                    stiffness_corrections_d, bond_types_d, regimes_d, plus_cs_d,
+                    local_mem_x, local_mem_y, local_mem_z, bond_stiffness_d,
+                    critical_stretch_d, np.float64(force_bc_magnitude),
+                    np.intc(nregimes), mass_vec_d, bulk_mod_d, shear_mod_d)
+        else:
+            self.bond_force_kernel(
+                    queue, (self.nnodes * self.max_neighbours,),
+                    (self.max_neighbours,), u_d, force_d, body_force_d, r0_d,
+                    vols_d, nlist_d, force_bc_types_d, force_bc_values_d,
+                    stiffness_corrections_d, bond_types_d, regimes_d, plus_cs_d,
+                    local_mem_x, local_mem_y, local_mem_z, bond_stiffness_d,
+                    critical_stretch_d, np.float64(force_bc_magnitude),
+                    np.intc(nregimes), mass_vec_d, bulk_mod_d, shear_mod_d)
+
         queue.finish()
 
     def write(self, u, ud, udd, force, body_force, damage, nlist, n_neigh):
