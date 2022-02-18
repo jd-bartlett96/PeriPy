@@ -44,7 +44,7 @@ def is_tip(x):
     tip = [None, None, None]
     # Particle does live on a tip to be measured, on the right-hand-side
     # (unconstrained end) of the beam
-    if x[0] > 1.55:
+    if x[0] > .9:
         # Measurements are made in the z direction
         tip[2] = 'rhs'
     # **e.g. if a particle resides on the top-right-hand-side
@@ -105,7 +105,7 @@ def is_force_boundary(x):
     """
     # Particle does not live on a boundary
     bnd = [None, None, None]
-    if x[0] > 1.55:
+    if x[0] > .9:
         # Force loaded in negative direction on the right hand side
         bnd[2] = -1
     return bnd
@@ -126,7 +126,7 @@ def main():
     # Average one-dimensional grid separation between particles along an axis
     dx = args.dx
     # Bounding box
-    bbox = [[0, 1.65], [0, 0.25], [0, 0.6]]
+    bbox = [[0, 1.], [0, 1.], [0, 1.]]
     # Following convention, the horizon distance is taken as just over 3
     # times the grid separation between particles
     horizon = dx * np.pi
@@ -184,7 +184,7 @@ def main():
     # Run the simulation
     # Use e.g. paraview to view the output .vtk files of simulate
     (u, damage, connectivity, force, ud, data) = model.simulate(
-        steps=5000,
+        steps=1000,
         force_bc_magnitudes=force_bc_array,
         write=0
         )

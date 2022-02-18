@@ -359,8 +359,9 @@ class Model(object):
         # Calculate stiffness corrections if None is provided
         if stiffness_corrections is None:
             stiffness_correction_factors_are_applied = False
-            stiffness_corrections = np.ones(
-                (self.nnodes, self.max_neighbours), dtype=np.float64)
+            stiffness_corrections = [self.nnodes, self.max_neighbours]
+            # stiffness_corrections = np.ones(
+            #     (self.nnodes, self.max_neighbours), dtype=np.float64)
             if micromodulus_function is not None:
                 # Apply micromodulus function
                 # Calculate the micromodulus function values
@@ -513,12 +514,12 @@ class Model(object):
                 raise TypeError("If no mesh file is provided, model must be"
                     "provided a dx value and bounding box")
             dim = len(bbox)
-            NX = int(np.round((bbox[0][1] - bbox[0][0])/dx))+1
-            NY = int(np.round((bbox[1][1] - bbox[1][0])/dx))+1
+            NX = int(np.round((bbox[0][1] - bbox[0][0])/dx))
+            NY = int(np.round((bbox[1][1] - bbox[1][0])/dx))
             xs = np.linspace(bbox[0][0],bbox[0][1],NX)
             ys = np.linspace(bbox[1][0],bbox[1][1],NY)
             if dim==3:
-                NZ = int(np.round((bbox[2][1] - bbox[2][0])/dx))+1
+                NZ = int(np.round((bbox[2][1] - bbox[2][0])/dx))
                 zs = np.linspace(bbox[2][0],bbox[2][1],NZ)
             if dim<3:
                 XS,YS = np.meshgrid(xs, ys)
@@ -651,6 +652,7 @@ class Model(object):
         conn = np.zeros((MXNB, NN), dtype = np.int32) - 1
         d_coord = cuda.to_device(coords.T)
         d_conn = cuda.to_device(conn) 
+        del conn
 
         self._d_set_neighbour_list[(NN+TPB-1)//TPB, TPB](horizon, d_coord, d_conn)
         nlist = d_conn.copy_to_host().T
@@ -1521,10 +1523,14 @@ class Model(object):
         if ud is None:
             ud = np.zeros((self.nnodes, 3), dtype=np.float64)
         # Initiate forces, damage and accelerations
-        force = np.zeros((self.nnodes, 3), dtype=np.float64)
-        body_force = np.zeros((self.nnodes, 3), dtype=np.float64)
-        damage = np.zeros(self.nnodes, dtype=np.float64)
-        udd = np.zeros((self.nnodes, 3), dtype=np.float64)
+        force = [self.nnodes, 3]
+        body_force = [self.nnodes, 3]
+        damage = [self.nnodes, 3]
+        udd = [self.nnodes, 3]
+        # force = np.zeros((self.nnodes, 3), dtype=np.float64)
+        # body_force = np.zeros((self.nnodes, 3), dtype=np.float64)
+        # damage = np.zeros(self.nnodes, dtype=np.float64)
+        # udd = np.zeros((self.nnodes, 3), dtype=np.float64)
         # Create boundary condition magnitudes if None is provided
         if displacement_bc_magnitudes is None:
             displacement_bc_magnitudes = np.zeros(
@@ -1565,8 +1571,8 @@ class Model(object):
         if connectivity is None:
             nlist, n_neigh = self.initial_connectivity
             # Make a copy so that the initial_connectivity remains unchanged
-            nlist = nlist.copy()
-            n_neigh = n_neigh.copy()
+            # nlist = nlist.copy()
+            # n_neigh = n_neigh.copy()
         elif type(connectivity) == tuple:
             if len(connectivity) != 2:
                 raise ValueError("connectivity size is wrong (expected 2,"
@@ -1579,8 +1585,9 @@ class Model(object):
         # Use the initial regimes of linear elastic (0 values) if none
         # is provided
         if regimes is None:
-            regimes = np.zeros(
-                (self.nnodes, self.max_neighbours), dtype=np.intc)
+            regimes = [self.nnodes, self.max_neighbours]
+            # regimes = np.zeros(
+            #     (self.nnodes, self.max_neighbours), dtype=np.intc)
         elif type(regimes) == np.ndarray:
             if np.shape(regimes) != (self.nnodes, self.max_neighbours):
                 raise ValueError("regimes shape is wrong, and must be "

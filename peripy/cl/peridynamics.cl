@@ -40,15 +40,15 @@ __kernel void
 		const double s = (y -  xi)/ xi;
 
         // Check for state of bonds here, and break it if necessary
-		if (s < critical_stretch) {
+		// if (s < critical_stretch) {
             // Copy bond dilaiton contribution into local memory
 		    local_cache_x[local_id] = s*vols[node_id_j]/mass_vec/mass_vec*(9*bulk_mod - 15*shear_mod);
-		}
-        else {
-            // bond is broken
-			nlist[global_id] = -1;  // Break the bond
-            local_cache_x[local_id] = 0.00;
-        }
+		// }
+        // else {
+        //     // bond is broken
+		// 	nlist[global_id] = -1;  // Break the bond
+        //     local_cache_x[local_id] = 0.00;
+        // }
     }
     // bond is broken
     else {
@@ -269,7 +269,7 @@ __kernel void
 		const double s = (y -  xi)/ xi;
 
         // Check for state of bonds here, and break it if necessary
-		if (s < critical_stretch) {
+		// if (s < critical_stretch) {
             const double cx = xi_eta_x / y;
 		    const double cy = xi_eta_y / y;
 		    const double cz = xi_eta_z / y;
@@ -279,14 +279,14 @@ __kernel void
 		    local_cache_x[local_id] = f * cx;
 		    local_cache_y[local_id] = f * cy;
 		    local_cache_z[local_id] = f * cz;
-		}
-        else {
-            // bond is broken
-			nlist[global_id] = -1;  // Break the bond
-            local_cache_x[local_id] = 0.00;
-            local_cache_y[local_id] = 0.00;
-            local_cache_z[local_id] = 0.00;
-        }
+		// }
+        // else {
+        //     // bond is broken
+		// 	nlist[global_id] = -1;  // Break the bond
+        //     local_cache_x[local_id] = 0.00;
+        //     local_cache_y[local_id] = 0.00;
+        //     local_cache_z[local_id] = 0.00;
+        // }
     }
     // bond is broken
     else {

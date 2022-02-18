@@ -252,7 +252,7 @@ class Integrator(ABC):
         # :meth:`peripy.model.Model.simulate` parameters.
         # Read and write
         self.force_d = cl.Buffer(
-            self.context, mf.READ_WRITE, force.nbytes)
+            self.context, mf.READ_WRITE, 8*force[0]*force[1])
         self.nlist_d = cl.Buffer(
             self.context, mf.READ_WRITE | mf.COPY_HOST_PTR,
             hostbuf=nlist)
@@ -263,13 +263,12 @@ class Integrator(ABC):
             self.context, mf.READ_WRITE | mf.COPY_HOST_PTR,
             hostbuf=ud)
         self.udd_d = cl.Buffer(
-            self.context, mf.READ_WRITE | mf.COPY_HOST_PTR,
-            hostbuf=udd)
+            self.context, mf.READ_WRITE, 8*udd[0]*udd[1])
         # Write only
         self.damage_d = cl.Buffer(
-            self.context, mf.WRITE_ONLY, damage.nbytes)
+            self.context, mf.WRITE_ONLY, 8*damage[0]*damage[1])
         self.body_force_d = cl.Buffer(
-            self.context, mf.WRITE_ONLY, body_force.nbytes)
+            self.context, mf.WRITE_ONLY, 8*body_force[0]*body_force[1])
         self.n_neigh_d = cl.Buffer(
             self.context, mf.WRITE_ONLY, n_neigh.nbytes)
 
